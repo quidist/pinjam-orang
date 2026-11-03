@@ -117,8 +117,48 @@ Setiap penawaran memiliki informasi:
 | End Time | Waktu selesai |
 | Capacity | Jumlah peserta maksimal |
 | Price | Harga per peserta |
-| Location | Lokasi atau media pelaksanaan |
+| Session Type | `ONLINE` (Virtual) atau `OFFLINE` (Public Meetup) |
+| Location | Link meeting (jika Online) atau nama ruang publik (jika Offline) |
 | Approval Mode | Otomatis atau persetujuan Host |
+| Boundaries | Checklist batasan interaksi + catatan opsional |
+
+### Session Mode Classification
+
+Untuk menjamin kenyamanan dan keselamatan, setiap penawaran diklasifikasikan secara tegas:
+
+1. **`ONLINE` (Virtual Experience):**
+   - Menggunakan platform virtual (Google Meet, Discord, Zoom, dsb.).
+   - Link sesi dibagikan secara privat hanya setelah booking terkonfirmasi.
+2. **`OFFLINE` (Public Meetup Only):**
+   - Pertemuan tatap muka **wajib** bertempat di ruang publik terbuka yang ramai (misal: kafe, perpustakaan umum, taman kota).
+   - Dilarang keras memilih lokasi privat (rumah tinggal, kamar hotel, kendaraan pribadi, area sepi).
+
+### Interaction Boundaries (Do & Don't Checklist)
+
+Sistem mengadopsi model **Hybrid (Preset Checklist + Custom Notes)** saat Host membuat listing:
+* **Preset Checklist (Standar Terverifikasi):**
+  - `[ ] Bebas bahasan asmara, perjodohan, atau flirtatious talk`
+  - `[ ] Bebas bahasan politik, SARA, dan topik polarisasi`
+  - `[ ] Dilarang merekam audio/video atau mengambil foto tanpa izin tertulis`
+  - `[ ] Interaksi bersifat non-fisik (no physical touch)`
+  - `[ ] Kamera wajib on / boleh off (khusus sesi Online)`
+* **Custom Boundaries (Opsional):** Kolom catatan bebas bagi Host untuk menambahkan batasan spesifik (misal: *"Saya memiliki fobia anjing, mohon tidak membawa hewan peliharaan"*).
+* **Participant Agreement:** Participant wajib membaca dan mencentang persetujuan atas batasan tersebut sebelum mengajukan booking.
+
+### Trust & Karma Score System (Anti-Ghosting)
+
+Untuk mencegah pembatalan sepihak dan meremehkan jadwal (terutama pada penawaran *FREE*):
+* Setiap akun baru memiliki modal awal skor (misal: **100 Poin**).
+* **Kehadiran Tepat Waktu:** Menambah poin (+5).
+* **No-Show / Ghosting:** Mengurangi poin secara drastis (-25).
+* **Pembatalan Wajar:** Pembatalan minimal 2 jam sebelum sesi tidak dikenakan penalti poin.
+* **Penalti Batas Bawah:** Akun dengan skor di bawah ambang batas (misal: < 70) akan dibekukan sementara dari hak booking maupun listing (*cooldown period*).
+
+### Privacy-First Communication
+
+* Identitas kontak pribadi (nomor WhatsApp, telepon, medsos) tidak pernah ditampilkan ke publik.
+* Komunikasi dan koordinasi dilakukan melalui pesan dalam aplikasi (*in-app messaging*) atau link sesi resmi.
+* Melindungi privasi Host dan Participant dari tindak *spamming*, *stalking*, atau pelecehan pasca-sesi.
 
 ### Participation Models
 
@@ -192,11 +232,25 @@ PINJAMORANG dirancang menggunakan arsitektur client-server dengan pemisahan tang
 | Frontend | Next.js |
 | Backend | Java + Spring Boot |
 | API | REST API |
-| Database | PostgreSQL |
+| Database | MySQL / MariaDB (Laragon) |
 | Authentication | Spring Security |
 | ORM / Data Access | Spring Data JPA |
 | Containerization | Docker |
 | Version Control | Git |
+
+### Struktur Folder MVC
+
+Folder `app/` menjadi kerangka awal pemisahan tanggung jawab:
+
+```text
+app/
+├── controller/
+├── model/
+└── view/
+```
+
+Letakkan pengendali alur aplikasi di `controller/`, struktur dan logika data di
+`model/`, serta tampilan di `view/`.
 
 ---
 
@@ -209,6 +263,10 @@ PINJAMORANG dirancang menggunakan arsitektur client-server dengan pemisahan tang
 5. Booking berbayar tidak boleh dianggap berhasil sebelum pembayaran terkonfirmasi.
 6. Host tetap memiliki kendali atas penawaran dan batas interaksinya.
 7. Pengguna dapat membatalkan penawaran atau reservasi berdasarkan kebijakan yang berlaku.
+8. Pertemuan tatap muka (offline) hanya diizinkan di ruang publik terbuka yang ramai.
+9. Pengguna dengan Trust Score di bawah batas minimum tidak dapat membuat reservasi baru.
+10. Dilarang bertukar kontak pribadi secara langsung di luar platform sebelum sesi terkonfirmasi.
+11. Participant wajib menyetujui batasan interaksi (boundaries) yang ditetapkan Host sebelum booking terkonfirmasi.
 
 ---
 
@@ -225,6 +283,8 @@ PINJAMORANG dirancang menggunakan arsitektur client-server dengan pemisahan tang
 - [ ] Booking management.
 - [ ] Capacity management.
 - [ ] Host dashboard.
+- [ ] Session type filter (Online vs Offline Public).
+- [ ] Boundaries checklist & participant agreement.
 
 ### Phase 2 — Marketplace
 
@@ -234,6 +294,8 @@ PINJAMORANG dirancang menggunakan arsitektur client-server dengan pemisahan tang
 - [ ] Refund and cancellation policies.
 - [ ] Host approval system.
 - [ ] Search and filtering.
+- [ ] Trust & Karma scoring system (anti-ghosting).
+- [ ] Privacy-first communication mask.
 
 ### Phase 3 — Social Experience
 
@@ -257,6 +319,9 @@ Platform harus memastikan:
 - Mekanisme pelaporan dan pemblokiran.
 - Tidak ada pemaksaan atau pelecehan.
 - Pembatalan dan refund yang transparan.
+- Perlindungan privasi (tanpa membagikan nomor telepon pribadi).
+- Pengamanan pertemuan tatap muka hanya di ruang publik.
+- Penegakan integritas kehadiran melalui Trust & Karma Score.
 
 ---
 
