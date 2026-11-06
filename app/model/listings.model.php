@@ -92,6 +92,19 @@ class listingsModel{
         return $sql->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    public function getListingByHost(PDO $pdo, int $host_id): array{
+        $stmt = $this->pdo->prepare("
+        SELECT * listings
+        FROM listings
+        WHERE host_id = :host_id");
+
+        $sql = $stmt->execute([
+            ':host_id' => $host_id
+        ]);
+
+        return $sql->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     
 }
 
