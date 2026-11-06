@@ -1,68 +1,122 @@
 # PRD: users.controller.php
 
-Dokumen Product Requirement Document (PRD) teknis untuk implementasi controller manajemen profil pengguna (*User Profile & Trust Dashboard*) pada sistem **PINJAMORANG**.
+Dokumen Product Requirement Document (PRD) teknis untuk implementasi controller profil pengguna dan reputasi (*User Profile & Trust Dashboard*) pada sistem **PINJAMORANG**.
 
 ---
 
-## 1. Deskripsi & Tanggung Jawab
-- **Tujuan File:** Mengelola tampilan profil pengguna, formulir edit profil (nama, bio, foto avatar, nomor kontak), tampilan Trust & Karma Score, serta status verifikasi akun.
-- **Letak File Target:** `app/controller/users.controller.php`
-- **Model Terkait:** `app/model/users.model.php` dan `app/model/reviews.model.php`
-- **Ketergantungan:** Helper otentikasi dari `auth.controller.php`.
+## 1. Identitas Class & Dependencies
+- **Nama File Target:** `app/controller/users.controller.php`
+- **Nama Class:** `UsersController`
+- **Tanggung Jawab:** Menampilkan profil publik pengguna (dengan proteksi privasi nomor kontak), menampilkan dashboard akun pribadi, memproses pembaruan biodata/nama, dan menangani penggantian kata sandi.
+- **Dependencies (Ketergantungan):**
+  - Objek database: `PDO $pdo`
+  - Model: `UserModel` dari `app/model/users.model.php`
+  - Model Review: `ReviewModel` dari `app/model/reviews.model.php`
+
+### Kerangka Dasar Class:
+```php
+class UsersController {
+    private PDO $pdo;
+    private UserModel $userModel;
+    private ReviewModel $reviewModel;
+
+    public function __construct(PDO $pdo) {
+        $this->pdo = $pdo;
+        $this->userModel = new UserModel($pdo);
+        $this->reviewModel = new ReviewModel($pdo);
+    }
+    // ... method-method di bawah ini
+}
+```
 
 ---
 
-## 2. Alur Kerja & Endpoints / Aksi
+## 2. Tabel Pemetaan Routing (`app/index.php`)
 
-| Aksi | Method HTTP | Deskripsi | Input Utama | Output / Redirect |
-|---|---|---|---|---|
-| `showProfile` | GET | Menampilkan halaman profil publik seorang user | `id` (via query param / path) | Render view `users/profile.php` |
-| `showMyProfile` | GET | Menampilkan dashboard profil akun sendiri | Session user | Render view `users/my_profile.php` |
-| `editProfile` | POST | Memproses pembaruan data profil akun | `name`, `bio`, `phone`, file avatar | Update database, redirect dengan flash message |
-| `changePassword` | POST | Memproses perubahan password akun | `old_password`, `new_password`, `confirm` | Validasi password lama, simpan hash baru |
-| `showTrustScore` | GET | Halaman edukasi & rincian skor karma user | Session user | Menampilkan skor, tier reputasi, & log kepatuhan |
+| URL Route (`?page=...`) | HTTP Method | Method Controller yang Dipanggil | Proteksi Akses |
+|---|---|---|---|
+| `?page=profile&id=X` | `GET` | `UsersController::showProfile()` | Publik |
+| `?page=my-profile` | `GET` | `UsersController::showMyProfile()` | Wajib Login (`AuthController::requireAuth`) |
+| `?page=update-profile` | `POST` | `UsersController::updateProfile()` | Wajib Login (`AuthController::requireAuth`) |
+| `?page=change-password` | `POST` | `UsersController::changePassword()` | Wajib Login (`AuthController::requireAuth`) |
 
 ---
 
-## 3. Spesifikasi Fungsi yang Harus Dibuat
+## 3. Spesifikasi Lengkap Fungsi / Method
 
-### 3.1. `userShowProfile(PDO $pdo, int $targetUserId): array`
-- **Kegunaan:** Menyiapkan data profil publik user tertentu agar dapat dilihat oleh pengguna lain sebelum memutuskan meminjam waktu.
-- **Logika:**
-  - Ambil data profil dengan `getUserById($pdo, $targetUserId, safe: true)`.
-  - Ambil rata-rata rating review dengan `getUserAverageRating()`.
-  - Ambil ulasan terbaru yang diterima oleh pengguna tersebut.
-- **Proteksi Privasi:** Nomor telepon tidak boleh disertakan pada tampilan publik (sesuai *Privacy-First Communication rule*).
-- **Nilai Kembalian:** Array asosiatif data profil publik atau pesan 404 jika user tidak ditemukan.
+### 3.1. `public function showProfile(): void`
+- **Kegunaan / Untuk Apa:** Menampilkan profil reputasi publik seorang pengguna (Host/Peserta) kepada publik, menampilkan meteran Trust Score dan daftar ulasan yang pernah diterima.
+- **Input yang Dibaca:** `$_GET['id']` (integer user ID).
+- **Logika Alur:**
+  1. Ambil `$id = (int)($_GET['id'] ?? 0)`.
+  2. Panggil Model dalam mode aman:
+     `$user = $this->userModel->getUserById($id, safe: true);`
+  3. Jika user tidak ditemukan: Tampilkan halaman 404 Not Found.
+  4. Ambil statistik review:
+     - `$reviews = $this->reviewModel->getReviewsByUserId($id);`
+     - `$avgRating = $this->reviewModel->getUserAverageRating($id);`
+  5. **Proteksi Privasi:** Pastikan nomor telepon tidak disertakan ke dalam array data view.
+  6. Rakit komponen View:
+     ```php
+     $pageTitle = "Profil " . htmlspecialchars($user['name']) . " - PINJAMORANG";
+     require_once __DIR__ . "/../view/layout/header.view.php";
+     require_once __DIR__ . "/../view/users/profile.view.php";
+     require_once __DIR__ . "/../view/layout/footer.view.php";
+     ```
 
-### 3.2. `userUpdateProfile(PDO $pdo, int $currentUserId, array $postData, ?array $fileData): array`
-- **Kegunaan:** Memvalidasi dan menyimpan perubahan data diri pengguna.
-- **Validasi:**
-  - `name`: Wajib, 3-100 karakter.
-  - `bio`: Opsional, maksimal 500 karakter.
-  - `phone`: Format nomor telepon valid.
-  - Avatar: Jika ada unggahan file, validasi ekstensi (`jpg`, `jpeg`, `png`, `webp`) dan ukuran maksimum (misal 2MB).
-- **Nilai Kembalian:** `['success' => bool, 'message' => string]`.
+### 3.2. `public function showMyProfile(): void`
+- **Kegunaan / Untuk Apa:** Menampilkan halaman pengaturan akun milik pengguna yang sedang login, berisi formulir edit nama, bio, nomor telepon privat, dan form ganti kata sandi.
+- **Logika Alur:**
+  1. Ambil ID dari sesi login: `$currentUserId = $_SESSION['user']['id'];`
+  2. Panggil Model: `$user = $this->userModel->getUserById($currentUserId, safe: true);`
+  3. Siapkan judul halaman: `$pageTitle = "Pengaturan Profil Saya - PINJAMORANG"`.
+  4. Rakit komponen View:
+     ```php
+     require_once __DIR__ . "/../view/layout/header.view.php";
+     require_once __DIR__ . "/../view/users/my_profile.view.php";
+     require_once __DIR__ . "/../view/layout/footer.view.php";
+     ```
 
-### 3.3. `userChangePassword(PDO $pdo, int $currentUserId, array $postData): array`
-- **Kegunaan:** Mengubah kata sandi user secara mandiri.
-- **Validasi:**
-  - Memverifikasi kata sandi lama cocok dengan yang tersimpan di database.
-  - Kata sandi baru minimal 6 karakter dan tidak sama dengan kata sandi lama.
-  - Konfirmasi kata sandi baru harus cocok.
-- **Nilai Kembalian:** `['success' => bool, 'message' => string]`.
+### 3.3. `public function updateProfile(): void`
+- **Kegunaan / Untuk Apa:** Memvalidasi dan menyimpan pembaruan informasi profil akun sendiri.
+- **Input yang Dibaca:** `$_POST['name']`, `$_POST['phone']`, `$_POST['bio']`.
+- **Logika Alur:**
+  1. Ambil `$currentUserId = $_SESSION['user']['id'];`
+  2. Validasi:
+     - `name`: Wajib, 3-100 karakter.
+     - `bio`: Maksimal 500 karakter.
+     - `phone`: Format nomor telepon valid.
+  3. Simpan perubahan ke database via `$this->userModel->updateProfile($currentUserId, $data)`.
+  4. Perbarui nama di sesi login jika berubah: `$_SESSION['user']['name'] = $name;`
+  5. Pasang flash alert sukses: `$_SESSION['flash_message'] = ['type' => 'success', 'text' => 'Profil berhasil diperbarui!'];`
+  6. Redirect kembali ke `?page=my-profile`.
 
-### 3.4. `checkUserTrustEligibility(PDO $pdo, int $userId): array`
-- **Kegunaan:** Memeriksa apakah Trust Score pengguna memenuhi syarat minimum untuk membuat penawaran atau booking (sesuai *Business Rule #9*: Trust Score < 70 terkena pembekuan sementara / cooldown).
-- **Nilai Kembalian:** `['eligible' => bool, 'score' => int, 'reason' => ?string]`.
+### 3.4. `public function changePassword(): void`
+- **Kegunaan / Untuk Apa:** Mengubah kata sandi akun secara mandiri dengan memverifikasi kecocokan kata sandi lama terlebih dahulu.
+- **Input yang Dibaca:** `$_POST['old_password']`, `$_POST['new_password']`, `$_POST['confirm_new_password']`.
+- **Logika Alur:**
+  1. Ambil `$currentUserId = $_SESSION['user']['id'];`
+  2. Ambil data user lengkap dengan password hash:
+     `$user = $this->userModel->getUserById($currentUserId, safe: false);`
+  3. Verifikasi Kata Sandi Lama:
+     `if (!password_verify($oldPassword, $user['password_hash']))`
+     &rarr; Gagal: kembalikan ke form profil dengan flash error *"Kata sandi lama tidak cocok."*
+  4. Validasi Kata Sandi Baru:
+     - Minimal 6 karakter.
+     - Konfirmasi sandi baru harus cocok.
+     - Tidak boleh sama dengan sandi lama.
+  5. Enkripsi dan Simpan:
+     - `$newHash = password_hash($newPassword, PASSWORD_BCRYPT);`
+     - Panggil `$this->userModel->updatePassword($currentUserId, $newHash);`
+  6. Pasang flash alert: `$_SESSION['flash_message'] = ['type' => 'success', 'text' => 'Kata sandi berhasil diubah!'];`
+  7. Redirect kembali ke `?page=my-profile`.
 
 ---
 
 ## 4. Checklist Implementasi
-- [ ] Otorisasi ketat: User hanya boleh mengedit profil dan password miliknya sendiri (`$currentUserId == $_SESSION['user']['id']`).
-- [ ] *Privacy Rule*: Nomor kontak pribadi tidak diekspos pada profil publik sebelum sesi terkonfirmasi.
-- [ ] Validasi keamanan unggahan file avatar (tipe MIME, ekstensi, batas ukuran) jika fitur upload diaktifkan.
-- [ ] Menerapkan aturan batasan Trust Score (< 70 status *Restricted*).
+- [ ] Profil publik tidak pernah mengekspos nomor telepon ke view publik.
+- [ ] Pemanggilan `safe: false` pada model hanya dilakukan khusus pada fungsi `changePassword()`.
+- [ ] Pengguna hanya memiliki wewenang untuk mengedit profil akun miliknya sendiri.
 
 ---
 
@@ -70,10 +124,8 @@ Dokumen Product Requirement Document (PRD) teknis untuk implementasi controller 
 
 | ID Tes | Kategori | Skenario Pengujian | Ekspektasi Hasil |
 |---|---|---|---|
-| TC-UPR-01 | Happy Path | Melihat profil publik user terdaftar | Profil tampil lengkap tanpa nomor telepon sensitif |
-| TC-UPR-02 | Edge Case | Melihat profil publik user yang tidak ada (ID salah) | Menampilkan respon/halaman 404 Not Found |
-| TC-UPR-03 | Happy Path | Update profil diri dengan data baru | Data tersimpan, flash message "Profil berhasil diperbarui" |
-| TC-UPR-04 | Otorisasi | Mencoba mengubah password tanpa mengetahui password lama yang benar | Ditolak, error "Kata sandi lama tidak cocok" |
-| TC-UPR-05 | Aturan Bisnis | Cek kelayakan user dengan Trust Score 65 | `eligible` bernilai `false` (dibekukan karena skor < 70) |
-| TC-UPR-06 | Aturan Bisnis | Cek kelayakan user dengan Trust Score 95 | `eligible` bernilai `true` (memenuhi syarat) |
-
+| TC-UC-01 | Profil Publik | Buka `?page=profile&id=1` | Menampilkan nama, bio, trust score, dan ulasan tanpa nomor telepon |
+| TC-UC-02 | Edge Case | Buka `?page=profile&id=99999` (tidak ada) | Menampilkan respon/halaman 404 Not Found |
+| TC-UC-03 | Edit Profil | Submit perubahan nama dan bio pada akun sendiri | Data tersimpan, session nama terupdate, flash alert muncul |
+| TC-UC-04 | Ganti Password | Submit ganti password dengan kata sandi lama yang salah | Gagal, muncul pesan "Kata sandi lama tidak cocok" |
+| TC-UC-05 | Ganti Password | Submit ganti password dengan data valid | Kata sandi terupdate dengan hash baru |

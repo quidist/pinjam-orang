@@ -1,73 +1,160 @@
 # PRD: auth.controller.php
 
-Dokumen Product Requirement Document (PRD) teknis untuk implementasi controller autentikasi & sesi pengguna (*Authentication & Session*) pada sistem **PINJAMORANG**.
+Dokumen Product Requirement Document (PRD) teknis untuk implementasi controller autentikasi pengguna (*User Authentication & Session Management*) pada sistem **PINJAMORANG**.
 
 ---
 
-## 1. Deskripsi & Tanggung Jawab
-- **Tujuan File:** Mengatur alur registrasi akun baru, proses login (verifikasi kata sandi), logout, manajemen session pengguna, serta fungsi proteksi rute (auth guard / middleware sederhana).
-- **Letak File Target:** `app/controller/auth.controller.php`
-- **Model Terkait:** `app/model/users.model.php`
-- **Ketergantungan:** Session PHP (`session_start()`), helper redirect, enkripsi password PHP native (`password_hash`, `password_verify`).
+## 1. Identitas Class & Dependencies
+- **Nama File Target:** `app/controller/auth.controller.php`
+- **Nama Class:** `AuthController`
+- **Tanggung Jawab:** Mengelola seluruh alur pendaftaran akun baru, proses masuk (verifikasi password), keluar akun, pengaturan session pengguna, serta fungsi penjaga gerbang (*Auth Guard*).
+- **Dependencies (Ketergantungan):**
+  - Objek database: `PDO $pdo`
+  - Model: `UserModel` dari `app/model/users.model.php`
+
+### Kerangka Dasar Class:
+```php
+class AuthController {
+    private PDO $pdo;
+    private UserModel $userModel;
+
+    public function __construct(PDO $pdo) {
+        $this->pdo = $pdo;
+        $this->userModel = new UserModel($pdo);
+    }
+    // ... method-method di bawah ini
+}
+```
 
 ---
 
-## 2. Alur Kerja & Endpoints / Aksi
+## 2. Tabel Pemetaan Routing (`app/index.php`)
 
-| Aksi | Method HTTP | Deskripsi | Input Utama | Output / Redirect |
-|---|---|---|---|---|
-| `showRegisterForm` | GET | Menampilkan halaman form pendaftaran | - | Render view `register.php` |
-| `handleRegister` | POST | Memproses pendaftaran user baru | `name`, `email`, `password`, `password_confirm` | Redirect ke `/login` dengan notifikasi sukses, atau reload jika error |
-| `showLoginForm` | GET | Menampilkan halaman form login | - | Render view `login.php` |
-| `handleLogin` | POST | Memvalidasi kredensial dan set session | `email`, `password` | Set `$_SESSION['user_id']`, redirect ke dashboard/katalog |
-| `handleLogout` | POST/GET | Menghapus session dan logout | - | Hancurkan session, redirect ke `/login` atau homepage |
-| `requireAuth` | Helper / Guard | Memastikan pengguna sudah login sebelum mengakses fitur privat | Session check | Lanjut eksekusi atau redirect ke `/login` |
+| URL Route (`?page=...`) | HTTP Method | Method Controller yang Dipanggil | Proteksi Akses |
+|---|---|---|---|
+| `?page=login` | `GET` | `AuthController::showLoginForm()` | Tamu Saja (`requireGuest`) |
+| `?page=login` | `POST` | `AuthController::handleLogin()` | Tamu Saja (`requireGuest`) |
+| `?page=register` | `GET` | `AuthController::showRegisterForm()` | Tamu Saja (`requireGuest`) |
+| `?page=register` | `POST` | `AuthController::handleRegister()` | Tamu Saja (`requireGuest`) |
+| `?page=logout` | `GET` atau `POST` | `AuthController::handleLogout()` | Wajib Login (`requireAuth`) |
 
 ---
 
-## 3. Spesifikasi Fungsi yang Harus Dibuat
+## 3. Spesifikasi Lengkap Fungsi / Method
 
-### 3.1. `authRegister(PDO $pdo, array $postData): array`
-- **Kegunaan:** Menangani logika pendaftaran pengguna baru.
-- **Validasi:**
-  - `name`: Wajib, minimal 3 karakter, maksimal 100 karakter.
-  - `email`: Wajib, format email valid (`filter_var`), belum pernah terdaftar (`isEmailExists`).
-  - `password`: Wajib, minimal 6 karakter.
-  - `password_confirm`: Harus persis sama dengan `password`.
-- **Proses:** Lakukan `password_hash($password, PASSWORD_BCRYPT)`. Panggil `createUser()` di model.
-- **Nilai Kembalian:** Array status `['success' => bool, 'message' => string, 'errors' => array]`.
+### 3.1. `public function showLoginForm(): void`
+- **Kegunaan / Untuk Apa:** Menampilkan halaman antarmuka formulir masuk akun ke layar browser.
+- **Logika Alur:**
+  1. Cek sesi: Jika user sudah login, alihkan ke `?page=home` (`$this->requireGuest()`).
+  2. Siapkan judul halaman: `$pageTitle = "Masuk - PINJAMORANG"`.
+  3. Ambil pesan error (jika ada error yang dioper dari redirect sebelumnya).
+  4. Rakit komponen View:
+     ```php
+     require_once __DIR__ . "/../view/layout/header.view.php";
+     require_once __DIR__ . "/../view/auth/login.view.php";
+     require_once __DIR__ . "/../view/layout/footer.view.php";
+     ```
 
-### 3.2. `authLogin(PDO $pdo, array $postData): array`
-- **Kegunaan:** Menangani proses login dan inisialisasi session.
-- **Validasi:** Email dan password tidak boleh kosong.
-- **Proses:** 
-  - Cari pengguna dengan `getUserByEmail()`.
-  - Cek kecocokan password menggunakan `password_verify($password, $user['password_hash'])`.
-  - Jika cocok: set `$_SESSION['user'] = ['id' => $user['id'], 'name' => $user['name'], 'email' => $user['email']]`.
-- **Nilai Kembalian:** Array status `['success' => bool, 'message' => string]`.
+### 3.2. `public function handleLogin(): void`
+- **Kegunaan / Untuk Apa:** Memvalidasi kredensial (email & password) yang dikirim oleh form login, menginisialisasi sesi login jika cocok, atau mengembalikan pesan kesalahan jika gagal.
+- **Input yang Dibaca:** `$_POST['email']` dan `$_POST['password']`.
+- **Logika Alur:**
+  1. Bersihkan dan sanitasi input (`trim`).
+  2. Validasi: Jika email atau password kosong, set pesan error dan tampilkan kembali form login.
+  3. Panggil Model: `$user = $this->userModel->getUserByEmail($email);`
+  4. Verifikasi Kata Sandi:
+     - Jika `$user` ditemukan dan `password_verify($password, $user['password_hash']) === true`:
+       - Jalankan `session_regenerate_id(true)` (keamanan anti-session fixation).
+       - Simpan identitas ke session:
+         ```php
+         $_SESSION['user'] = [
+             'id'          => $user['id'],
+             'name'        => $user['name'],
+             'email'       => $user['email'],
+             'trust_score' => $user['trust_score']
+         ];
+         ```
+       - Pasang flash alert: `$_SESSION['flash_message'] = ['type' => 'success', 'text' => 'Selamat datang kembali, ' . $user['name'] . '!'];`
+       - Redirect ke: `header("Location: /index.php?page=home"); exit;`
+     - Jika tidak cocok:
+       - Set pesan error aman: *"Email atau kata sandi tidak sesuai."*
+       - Tampilkan kembali form login dengan membawa input email lama.
 
-### 3.3. `authLogout(): void`
-- **Kegunaan:** Mengakhiri sesi pengguna secara aman.
-- **Proses:** Bersihkan array `$_SESSION`, hapus cookie sesi jika ada, jalankan `session_destroy()`, lalu redirect ke halaman utama/login.
+### 3.3. `public function showRegisterForm(): void`
+- **Kegunaan / Untuk Apa:** Menampilkan halaman formulir pendaftaran akun baru.
+- **Logika Alur:**
+  1. Cek sesi: Jika sudah login, lempar ke home.
+  2. Siapkan judul halaman: `$pageTitle = "Daftar Akun Baru - PINJAMORANG"`.
+  3. Rakit komponen View:
+     ```php
+     $extraScript = "/assets/js/auth.js"; // Aktifkan live password match & strength meter
+     require_once __DIR__ . "/../view/layout/header.view.php";
+     require_once __DIR__ . "/../view/auth/register.view.php";
+     require_once __DIR__ . "/../view/layout/footer.view.php";
+     ```
 
-### 3.4. `isAuthenticated(): bool`
-- **Kegunaan:** Helper untuk memeriksa apakah ada user yang sedang login aktif dalam sesi saat ini.
-- **Nilai Kembalian:** `true` jika `isset($_SESSION['user']['id'])`, sebaliknya `false`.
+### 3.4. `public function handleRegister(): void`
+- **Kegunaan / Untuk Apa:** Memproses pendaftaran akun baru, memvalidasi aturan bisnis (email belum pernah terdaftar, password minimal 6 karakter, konfirmasi cocok), mengenkripsi kata sandi, dan menyimpan ke database.
+- **Input yang Dibaca:** `$_POST['name']`, `$_POST['email']`, `$_POST['password']`, `$_POST['password_confirm']`.
+- **Logika Alur:**
+  1. Validasi:
+     - Nama: Wajib diisi, minimal 3 karakter, maksimal 100 karakter.
+     - Email: Wajib format email valid (`filter_var`), dan belum terdaftar di database via `$this->userModel->isEmailExist($email)`.
+     - Password: Wajib minimal 6 karakter.
+     - Konfirmasi: Wajib bernilai sama persis dengan password.
+  2. Jika ada validasi yang gagal:
+     - Simpan array `$errors` dan data `$oldInput`.
+     - Tampilkan kembali form register dengan daftar error tersebut.
+  3. Jika validasi sukses:
+     - Enkripsi password: `$passwordHash = password_hash($password, PASSWORD_BCRYPT);`
+     - Panggil Model untuk simpan data:
+       ```php
+       $newUserId = $this->userModel->createuser([
+           'name'          => $name,
+           'email'         => $email,
+           'password_hash' => $passwordHash
+       ]);
+       ```
+     - Set flash alert sukses: `$_SESSION['flash_message'] = ['type' => 'success', 'text' => 'Akun berhasil dibuat! Silakan masuk.'];`
+     - Redirect ke: `header("Location: /index.php?page=login"); exit;`
 
-### 3.5. `getCurrentUser(PDO $pdo): ?array`
-- **Kegunaan:** Mengambil data profil lengkap dari user yang sedang login saat ini.
-- **Nilai Kembalian:** Array profil user atau `null` jika belum login.
+### 3.5. `public function handleLogout(): void`
+- **Kegunaan / Untuk Apa:** Mengakhiri sesi pengguna secara aman saat user mengklik menu "Keluar / Logout".
+- **Logika Alur:**
+  1. Kosongkan data session: `$_SESSION = [];`
+  2. Hancurkan cookie sesi jika ada.
+  3. Hancurkan session: `session_destroy();`
+  4. Redirect ke halaman login: `header("Location: /index.php?page=login"); exit;`
 
-### 3.6. `requireAuth(): void`
-- **Kegunaan:** Guard / pencegah akses: jika user belum login, simpan return URL dan alihkan seketika ke halaman login.
+### 3.6. `public static function requireAuth(): void` (Helper Guard)
+- **Kegunaan / Untuk Apa:** Fungsi satpam pemeriksa login. Dipanggil di awal method controller lain yang mewajibkan pengguna login terlebih dahulu.
+- **Logika:**
+  ```php
+  if (!isset($_SESSION['user']['id'])) {
+      $_SESSION['flash_message'] = ['type' => 'error', 'text' => 'Silakan masuk terlebih dahulu untuk mengakses fitur ini.'];
+      header("Location: /index.php?page=login");
+      exit;
+  }
+  ```
+
+### 3.7. `public static function requireGuest(): void` (Helper Guard)
+- **Kegunaan / Untuk Apa:** Mencegah pengguna yang sudah login agar tidak membuka kembali halaman `/login` atau `/register`.
+- **Logika:**
+  ```php
+  if (isset($_SESSION['user']['id'])) {
+      header("Location: /index.php?page=home");
+      exit;
+  }
+  ```
 
 ---
 
 ## 4. Checklist Implementasi
-- [ ] Penggunaan `password_hash()` dengan algoritma aman (`PASSWORD_BCRYPT` atau `PASSWORD_DEFAULT`).
-- [ ] Mencegah Session Fixation dengan `session_regenerate_id(true)` saat login berhasil.
-- [ ] Sanitasi seluruh input `POST` (`trim`, `htmlspecialchars` pada tampilan).
-- [ ] Menyediakan pesan error yang informatif namun aman (hindari membocorkan secara detail apakah email atau password yang salah pada form login demi keamanan).
+- [ ] Class `AuthController` menginjeksi `PDO` dan menginstansiasi `UserModel` di constructor.
+- [ ] Kata sandi selalu dienkripsi dengan `password_hash($pass, PASSWORD_BCRYPT)`.
+- [ ] Tidak pernah menyimpan teks `password_hash` di dalam array `$_SESSION`.
+- [ ] Memanggil `session_regenerate_id(true)` saat login berhasil untuk mencegah *Session Fixation*.
+- [ ] Seluruh alur redirect diakhiri dengan perintah `exit;`.
 
 ---
 
@@ -75,11 +162,10 @@ Dokumen Product Requirement Document (PRD) teknis untuk implementasi controller 
 
 | ID Tes | Kategori | Skenario Pengujian | Ekspektasi Hasil |
 |---|---|---|---|
-| TC-ATH-01 | Happy Path | Registrasi dengan data lengkap dan valid | User tersimpan, return `success => true` |
-| TC-ATH-02 | Validasi | Registrasi dengan konfirmasi password tidak cocok | Gagal, error "Konfirmasi kata sandi tidak cocok" |
-| TC-ATH-03 | Validasi | Registrasi dengan email yang sudah digunakan | Gagal, error "Email sudah terdaftar" |
-| TC-ATH-04 | Happy Path | Login dengan email dan password yang benar | Session `user` terisi, redirect ke halaman utama |
-| TC-ATH-05 | Keamanan | Login dengan password salah | Gagal, session tidak terbuat, error kredensial tidak valid |
-| TC-ATH-06 | Happy Path | Pemanggilan `authLogout` | Session terhapus, `isAuthenticated()` bernilai `false` |
-| TC-ATH-07 | Guard | Mengakses fitur yang butuh login tanpa session aktif | Diarahkan otomatis ke halaman login |
-
+| TC-AC-01 | Tampilan | Buka `?page=login` saat belum login | Merender form login dengan judul "Masuk - PINJAMORANG" |
+| TC-AC-02 | Guard | Buka `?page=login` saat sudah login | Dialihkan otomatis ke `?page=home` |
+| TC-AC-03 | Happy Path | Submit form register dengan data valid | User tersimpan, dialihkan ke `?page=login` dengan notifikasi sukses |
+| TC-AC-04 | Validasi | Submit register dengan email yang sudah ada | Form register muncul kembali dengan pesan "Email sudah terdaftar" |
+| TC-AC-05 | Happy Path | Submit login dengan kredensial cocok | Session `user` terisi, dialihkan ke `?page=home` |
+| TC-AC-06 | Keamanan | Submit login dengan password salah | Gagal login, session tidak dibuat, muncul pesan error kredensial tidak cocok |
+| TC-AC-07 | Happy Path | Mengakses `?page=logout` | Session hancur, dialihkan ke halaman login |

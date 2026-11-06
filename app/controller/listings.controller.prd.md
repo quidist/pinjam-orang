@@ -1,73 +1,137 @@
 # PRD: listings.controller.php
 
-Dokumen Product Requirement Document (PRD) teknis untuk implementasi controller katalog penawaran waktu (*Human Catalog & Time Listing*) pada sistem **PINJAMORANG**.
+Dokumen Product Requirement Document (PRD) teknis untuk implementasi controller katalog penawaran waktu (*Human Catalog & Time Listings*) pada sistem **PINJAMORANG**.
 
 ---
 
-## 1. Deskripsi & Tanggung Jawab
-- **Tujuan File:** Mengatur alur penjelajahan katalog waktu publik (Human Catalog), pencarian dan filter penawaran, pembuatan penawaran baru oleh Host, validasi lokasi ruang publik (untuk sesi Offline), checklist batas interaksi (*Boundaries*), serta pengelolaan status penawaran.
-- **Letak File Target:** `app/controller/listings.controller.php`
-- **Model Terkait:** `app/model/listings.model.php` dan `app/model/users.model.php`
-- **Ketergantungan:** Guard `requireAuth()` dari `auth.controller.php`.
+## 1. Identitas Class & Dependencies
+- **Nama File Target:** `app/controller/listings.controller.php`
+- **Nama Class:** `ListingsController`
+- **Tanggung Jawab:** Menangani etalase katalog publik, pencarian dan filter penawaran, tampilan detail pengalaman, formulir pembuatan waktu baru oleh Host, serta pembatalan penawaran.
+- **Dependencies (Ketergantungan):**
+  - Objek database: `PDO $pdo`
+  - Model: `ListingModel` dari `app/model/listings.model.php`
+  - Model User: `UserModel` dari `app/model/users.model.php`
+
+### Kerangka Dasar Class:
+```php
+class ListingsController {
+    private PDO $pdo;
+    private ListingModel $listingModel;
+    private UserModel $userModel;
+
+    public function __construct(PDO $pdo) {
+        $this->pdo = $pdo;
+        $this->listingModel = new ListingModel($pdo);
+        $this->userModel = new UserModel($pdo);
+    }
+    // ... method-method di bawah ini
+}
+```
 
 ---
 
-## 2. Alur Kerja & Endpoints / Aksi
+## 2. Tabel Pemetaan Routing (`app/index.php`)
 
-| Aksi | Method HTTP | Deskripsi | Input Utama | Output / Redirect |
-|---|---|---|---|---|
-| `index` | GET | Menampilkan katalog penawaran aktif publik | Query params: `keyword`, `session_type`, `is_free`, `date`, `page` | Render view `listings/index.php` |
-| `detail` | GET | Menampilkan detail penawaran spesifik | `id` | Render view `listings/detail.php` |
-| `createForm` | GET | Menampilkan formulir buat penawaran waktu baru | - | Render view `listings/create.php` (butuh login) |
-| `store` | POST | Memvalidasi dan menyimpan penawaran baru | `title`, `description`, `session_type`, `date`, `start_time`, `end_time`, `capacity`, `price`, `location`, `approval_mode`, `boundaries` | Redirect ke detail listing atau dashboard host |
-| `myListings` | GET | Menampilkan daftar listing yang dibuat oleh user sendiri | Session user | Render view `listings/my_listings.php` |
-| `cancel` | POST | Membatalkan penawaran waktu oleh Host | `id` listing | Update status menjadi `CANCELLED` |
+| URL Route (`?page=...`) | HTTP Method | Method Controller yang Dipanggil | Proteksi Akses |
+|---|---|---|---|
+| `?page=home` atau default | `GET` | `ListingsController::index()` | Publik |
+| `?page=listings` | `GET` | `ListingsController::index()` | Publik |
+| `?page=listing-detail&id=X` | `GET` | `ListingsController::detail()` | Publik |
+| `?page=create-listing` | `GET` | `ListingsController::create()` | Wajib Login (`AuthController::requireAuth`) |
+| `?page=create-listing` | `POST` | `ListingsController::store()` | Wajib Login (`AuthController::requireAuth`) |
+| `?page=my-listings` | `GET` | `ListingsController::myListings()` | Wajib Login (`AuthController::requireAuth`) |
+| `?page=cancel-listing` | `POST` | `ListingsController::cancel()` | Wajib Login (`AuthController::requireAuth`) |
 
 ---
 
-## 3. Spesifikasi Fungsi yang Harus Dibuat
+## 3. Spesifikasi Lengkap Fungsi / Method
 
-### 3.1. `listingIndex(PDO $pdo, array $queryParams): array`
-- **Kegunaan:** Menyiapkan data katalog penawaran untuk halaman utama/katalog.
+### 3.1. `public function index(): void`
+- **Kegunaan / Untuk Apa:** Menyiapkan data katalog penawaran aktif publik berdasarkan filter pencarian (kata kunci, tipe sesi online/offline, filter gratis), lalu merender halaman katalog utama.
+- **Input yang Dibaca:** `$_GET['keyword']`, `$_GET['session_type']`, `$_GET['is_free']`, `$_GET['p']` (halaman pagination).
+- **Logika Alur:**
+  1. Kumpulkan parameter filter ke dalam array `$filters`.
+  2. Panggil Model: `$listings = $this->listingModel->getActiveListings($filters);`
+  3. Siapkan judul halaman: `$pageTitle = "Jelajahi Waktu Manusia - PINJAMORANG"`.
+  4. Rakit komponen View:
+     ```php
+     require_once __DIR__ . "/../view/layout/header.view.php";
+     require_once __DIR__ . "/../view/listings/catalog.view.php";
+     require_once __DIR__ . "/../view/layout/footer.view.php";
+     ```
+
+### 3.2. `public function detail(): void`
+- **Kegunaan / Untuk Apa:** Menampilkan rincian lengkap sebuah penawaran waktu, informasi host, sisa slot kuota, dan boks batas interaksi (*Boundaries Agreement*).
+- **Input yang Dibaca:** `$_GET['id']` (integer ID listing).
+- **Logika Alur:**
+  1. Ambil `$id = (int)($_GET['id'] ?? 0)`.
+  2. Panggil Model: `$listing = $this->listingModel->getListingById($id);`
+  3. Jika data tidak ditemukan: Tampilkan halaman error 404 atau alihkan ke katalog dengan flash alert error.
+  4. Hitung sisa kapasitas: `$remainingSlots = $this->listingModel->getRemainingCapacity($id);`
+  5. Cek apakah user sedang login dan sudah mendaftar di sesi ini:
+     `$hasBooked = isset($_SESSION['user']['id']) ? $this->bookingModel->hasUserBookedListing($id, $_SESSION['user']['id']) : false;`
+  6. Rakit komponen View:
+     ```php
+     $extraScript = "/assets/js/booking.js"; // Pasang live price multiplier & boundaries guard
+     require_once __DIR__ . "/../view/layout/header.view.php";
+     require_once __DIR__ . "/../view/listings/detail.view.php";
+     require_once __DIR__ . "/../view/layout/footer.view.php";
+     ```
+
+### 3.3. `public function create(): void`
+- **Kegunaan / Untuk Apa:** Menampilkan formulir pembuatan penawaran waktu baru bagi Host.
+- **Proteksi:** Wajib login. Cek kelayakan Trust Score Host (wajib &ge; 70).
+- **Logika Alur:**
+  1. Ambil data host: `$host = $this->userModel->getUserById($_SESSION['user']['id']);`
+  2. Cek Trust Score: Jika `$host['trust_score'] < 70`, tolak pembuatan penawaran, beri pesan alert bahwa akun dalam masa pembekuan, dan redirect ke dashboard profil.
+  3. Siapkan judul: `$pageTitle = "Buat Penawaran Waktu Baru - PINJAMORANG"`.
+  4. Rakit komponen View:
+     ```php
+     $extraScript = "/assets/js/listing-form.js"; // Pasang dynamic venue switcher & auto duration
+     require_once __DIR__ . "/../view/layout/header.view.php";
+     require_once __DIR__ . "/../view/listings/create.view.php";
+     require_once __DIR__ . "/../view/layout/footer.view.php";
+     ```
+
+### 3.4. `public function store(): void`
+- **Kegunaan / Untuk Apa:** Memvalidasi data formulir penawaran baru yang dikirim oleh Host, mengecek konflik jadwal (anti-overlapping), dan menyimpannya ke tabel `listings`.
+- **Input yang Dibaca:** `$_POST['title']`, `$_POST['description']`, `$_POST['session_type']`, `$_POST['listing_date']`, `$_POST['start_time']`, `$_POST['end_time']`, `$_POST['capacity']`, `$_POST['price']`, `$_POST['location']`, `$_POST['approval_mode']`, `$_POST['boundaries']`.
+- **Validasi Bisnis:**
+  1. Tanggal listing tidak boleh di masa lalu (`listing_date >= today`).
+  2. Jam selesai harus lebih besar dari jam mulai (`end_time > start_time`).
+  3. Cek jadwal bentrok via Model:
+     `$this->listingModel->hasOverlappingListing($hostId, $date, $start, $end)`
+     Jika bentrok: kembalikan ke form dengan pesan error "Jadwal bertabrakan dengan penawaran aktif Anda yang lain".
+  4. Sesi OFFLINE wajib berlokasi di ruang publik terbuka yang ramai.
+  5. Kapasitas minimal 1 orang, harga minimal 0 (jika opsi gratis dicentang, harga otomatis 0.00).
+- **Penyimpanan & Redirect:**
+  - Panggil `$this->listingModel->createListing(...)`.
+  - Pasang flash alert: `$_SESSION['flash_message'] = ['type' => 'success', 'text' => 'Penawaran waktu Anda berhasil diterbitkan!'];`
+  - Redirect ke detail listing: `header("Location: /index.php?page=listing-detail&id=" . $newId); exit;`
+
+### 3.5. `public function myListings(): void`
+- **Kegunaan / Untuk Apa:** Menampilkan seluruh penawaran waktu yang pernah dibuat oleh user yang sedang login (Host Dashboard).
+- **Logika Alur:**
+  1. Ambil `$hostId = $_SESSION['user']['id'];`
+  2. Panggil Model: `$myListings = $this->listingModel->getListingsByHost($hostId);`
+  3. Rakit komponen View `app/view/listings/my_listings.view.php`.
+
+### 3.6. `public function cancel(): void`
+- **Kegunaan / Untuk Apa:** Membatalkan penawaran waktu oleh Host pemiliknya.
+- **Input yang Dibaca:** `$_POST['listing_id']`.
+- **Validasi Otorisasi:** Pastikan `host_id` pada listing sesuai dengan `$_SESSION['user']['id']`. Listing belum berstatus `COMPLETED` atau `CANCELLED`.
 - **Logika:**
-  - Ekstraksi parameter filter: `keyword`, `session_type` (ONLINE/OFFLINE), `is_free`, `date`, `page`.
-  - Panggil `getActiveListings()` dari model.
-  - Hitung sisa slot untuk setiap listing menggunakan `getRemainingCapacity()`.
-- **Nilai Kembalian:** Array `['listings' => array, 'filters' => array, 'pagination' => array]`.
-
-### 3.2. `listingDetail(PDO $pdo, int $listingId, ?int $currentUserId = null): array`
-- **Kegunaan:** Menyiapkan data detail penawaran untuk halaman rincian listing.
-- **Logika:**
-  - Ambil listing dengan `getListingById()`.
-  - Hitung sisa kapasitas slot.
-  - Cek apakah user yang sedang login sudah pernah mengajukan booking di listing ini (`hasUserBookedListing`).
-- **Nilai Kembalian:** Array detail lengkap atau error 404 jika tidak ditemukan.
-
-### 3.3. `listingCreate(PDO $pdo, int $hostId, array $postData): array`
-- **Kegunaan:** Memvalidasi input formulir pembuatan listing dan menyimpannya.
-- **Validasi Bisnis Wajib:**
-  1. *Trust Score Check:* Cek kelayakan Trust Score Host (wajib &ge; 70).
-  2. *Durasi & Waktu:* `listing_date` tidak boleh di masa lalu. `end_time` harus lebih besar dari `start_time`.
-  3. *Overlap Check:* Host tidak boleh memiliki penawaran lain yang bertabrakan di tanggal dan jam yang sama (`hasOverlappingListing`).
-  4. *Kapasitas & Harga:* Kapasitas minimal 1 orang. Harga tidak boleh negatif (jika 0 berarti FREE).
-  5. *Session Type & Location Rule:*
-     - Jika `session_type == 'OFFLINE'`, lokasi harus berupa nama ruang publik yang ramai (bukan ruang privat/hotel/rumah).
-     - Jika `session_type == 'ONLINE'`, lokasi berupa platform/link meeting.
-  6. *Boundaries Checklist:* Host harus menyertakan ketentuan interaksi (preset boundaries + catatan tambahan).
-- **Nilai Kembalian:** `['success' => bool, 'listing_id' => ?int, 'errors' => array]`.
-
-### 3.4. `listingCancel(PDO $pdo, int $listingId, int $currentUserId): array`
-- **Kegunaan:** Membatalkan listing oleh Host pemiliknya.
-- **Validasi:** User yang melakukan aksi wajib pemilik listing (`host_id`). Listing belum berstatus `COMPLETED` atau `CANCELLED`.
-- **Nilai Kembalian:** `['success' => bool, 'message' => string]`.
+  - Panggil `$this->listingModel->updateListingStatus($listingId, 'CANCELLED')`.
+  - Redirect kembali ke halaman `my-listings` dengan flash message sukses.
 
 ---
 
 ## 4. Checklist Implementasi
-- [ ] Penegakan aturan keselamatan: Validasi lokasi sesi OFFLINE hanya di ruang publik terbuka.
-- [ ] Validasi bentrok jadwal (*anti-overlapping*) untuk Host yang sama.
-- [ ] Validasi ketersediaan kapasitas sebelum menampilkan tombol booking.
-- [ ] Pengecekan status login menggunakan guard `requireAuth()` pada aksi create, edit, dan cancel.
+- [ ] Validasi keamanan jadwal bentrok (*anti-overlapping*) dijalankan sebelum data disimpan ke database.
+- [ ] Aturan keselamatan sesi tatap muka (Offline) hanya diizinkan di ruang publik.
+- [ ] Pengecekan ambang batas Trust Score (&ge; 70) pada fungsi `create()` dan `store()`.
+- [ ] Menggunakan prepared statements secara konsisten melalui Model.
 
 ---
 
@@ -75,10 +139,9 @@ Dokumen Product Requirement Document (PRD) teknis untuk implementasi controller 
 
 | ID Tes | Kategori | Skenario Pengujian | Ekspektasi Hasil |
 |---|---|---|---|
-| TC-LTC-01 | Happy Path | Akses katalog dengan filter `session_type = 'OFFLINE'` | Menampilkan daftar listing offline aktif |
-| TC-LTC-02 | Validasi | Buat listing dengan jam selesai sebelum jam mulai | Gagal, error "Waktu selesai harus setelah waktu mulai" |
-| TC-LTC-03 | Validasi | Buat listing dengan tanggal kemarin (masa lampau) | Gagal, error "Tanggal listing tidak boleh di masa lalu" |
-| TC-LTC-04 | Aturan Bisnis | Host membuat listing yang jamnya bertabrakan dengan listing aktifnya | Gagal, error "Jadwal bertabrakan dengan penawaran Anda yang lain" |
-| TC-LTC-05 | Aturan Bisnis | Host dengan Trust Score 60 mencoba membuat listing | Ditolak, error "Skor reputasi di bawah batas minimum" |
-| TC-LTC-06 | Otorisasi | User A mencoba membatalkan listing milik User B | Ditolak, error 403 Forbidden / Unauthorized |
-
+| TC-LC-01 | Tampilan | Membuka `?page=listings` tanpa filter | Menampilkan daftar seluruh listing aktif publik |
+| TC-LC-02 | Filter | Filter dengan `session_type=ONLINE` | Hanya menampilkan data dengan jenis sesi online |
+| TC-LC-03 | Validasi Jadwal | Buat listing dengan jam mulai 15:00 dan jam selesai 14:00 | Gagal validasi, pesan "Jam selesai harus setelah jam mulai" |
+| TC-LC-04 | Overlap Guard | Host membuat listing pada jam yang sama dengan listing aktifnya | Gagal validasi, pesan "Jadwal bertabrakan" |
+| TC-LC-05 | Trust Guard | Host dengan Trust Score 60 mencoba membuat listing | Ditolak, diarahkan ke dashboard dengan notifikasi pembekuan akun |
+| TC-LC-06 | Otorisasi Batal | User A mencoba membatalkan listing milik User B | Ditolak (403 Unauthorized) |

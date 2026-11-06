@@ -4,69 +4,132 @@ Dokumen Product Requirement Document (PRD) teknis untuk implementasi controller 
 
 ---
 
-## 1. Deskripsi & Tanggung Jawab
-- **Tujuan File:** Mengelola alur pemesanan waktu oleh Participant, verifikasi sisa kuota kapasitas, penegakan persetujuan batas interaksi (*Boundaries Agreement*), sistem persetujuan oleh Host (*Host Approval System*), pembatalan reservasi, dan daftar jadwal pengalaman pengguna.
-- **Letak File Target:** `app/controller/bookings.controller.php`
-- **Model Terkait:** `app/model/bookings.model.php`, `app/model/listings.model.php`, `app/model/users.model.php`, `app/model/payments.model.php`.
-- **Ketergantungan:** Guard `requireAuth()` dari `auth.controller.php`.
+## 1. Identitas Class & Dependencies
+- **Nama File Target:** `app/controller/bookings.controller.php`
+- **Nama Class:** `BookingsController`
+- **Tanggung Jawab:** Mengatur alur pendaftaran slot waktu oleh Participant, penegakan persetujuan batasan interaksi (*Boundaries Agreement*), dashboard persetujuan oleh Host (*Host Approval System*), pembatalan reservasi, dan penegakan aturan anti-ghosting.
+- **Dependencies (Ketergantungan):**
+  - Objek database: `PDO $pdo`
+  - Model: `BookingModel` dari `app/model/bookings.model.php`
+  - Model Listing: `ListingModel` dari `app/model/listings.model.php`
+  - Model User: `UserModel` dari `app/model/users.model.php`
+
+### Kerangka Dasar Class:
+```php
+class BookingsController {
+    private PDO $pdo;
+    private BookingModel $bookingModel;
+    private ListingModel $listingModel;
+    private UserModel $userModel;
+
+    public function __construct(PDO $pdo) {
+        $this->pdo = $pdo;
+        $this->bookingModel = new BookingModel($pdo);
+        $this->listingModel = new ListingModel($pdo);
+        $this->userModel = new UserModel($pdo);
+    }
+    // ... method-method di bawah ini
+}
+```
 
 ---
 
-## 2. Alur Kerja & Endpoints / Aksi
+## 2. Tabel Pemetaan Routing (`app/index.php`)
 
-| Aksi | Method HTTP | Deskripsi | Input Utama | Output / Redirect |
-|---|---|---|---|---|
-| `book` | POST | Mengajukan booking slot pada listing tertentu | `listing_id`, `agreed_to_boundaries`, `notes` | Redirect ke invoice (jika berbayar) atau konfirmasi (jika free) |
-| `myBookings` | GET | Menampilkan riwayat pengalaman yang dipesan participant | Session user | Render view `bookings/my_bookings.php` |
-| `hostRequests` | GET | Menampilkan daftar permintaan booking masuk untuk Host | `listing_id` atau Host ID | Render view `bookings/host_requests.php` |
-| `approve` | POST | Host menyetujui permintaan booking masuk | `booking_id` | Update status menjadi `CONFIRMED` |
-| `reject` | POST | Host menolak permintaan booking masuk | `booking_id`, alasan | Update status menjadi `REJECTED` |
-| `cancel` | POST | Membatalkan reservasi oleh Participant | `booking_id` | Update status menjadi `CANCELLED` |
+| URL Route (`?page=...`) | HTTP Method | Method Controller yang Dipanggil | Proteksi Akses |
+|---|---|---|---|
+| `?page=book` | `POST` | `BookingsController::book()` | Wajib Login (`AuthController::requireAuth`) |
+| `?page=my-bookings` | `GET` | `BookingsController::myBookings()` | Wajib Login (`AuthController::requireAuth`) |
+| `?page=host-requests` | `GET` | `BookingsController::hostRequests()` | Wajib Login (`AuthController::requireAuth`) |
+| `?page=approve-booking` | `POST` | `BookingsController::approve()` | Wajib Login (`AuthController::requireAuth`) |
+| `?page=reject-booking` | `POST` | `BookingsController::reject()` | Wajib Login (`AuthController::requireAuth`) |
+| `?page=cancel-booking` | `POST` | `BookingsController::cancel()` | Wajib Login (`AuthController::requireAuth`) |
 
 ---
 
-## 3. Spesifikasi Fungsi yang Harus Dibuat
+## 3. Spesifikasi Lengkap Fungsi / Method
 
-### 3.1. `bookingCreate(PDO $pdo, int $participantId, array $postData): array`
-- **Kegunaan:** Memvalidasi pengajuan reservasi dan menyimpannya ke database.
-- **Validasi Bisnis Wajib:**
-  1. *Self-Booking Prevention:* Host tidak boleh memesan listing miliknya sendiri (`host_id != participantId`).
-  2. *Trust Score Check:* Participant harus memiliki Trust Score &ge; 70.
-  3. *Listing Status & Schedule Check:* Listing harus berstatus `ACTIVE` dan belum dimulai/kedaluwarsa.
-  4. *Capacity Check:* Sisa kapasitas harus &ge; 1 (`getRemainingCapacity() > 0`).
-  5. *Anti-Double-Booking:* Participant belum pernah mendaftar di listing ini (`hasUserBookedListing == false`).
-  6. *Boundaries Agreement:* Kolom `agreed_to_boundaries` **wajib dicentang** (`true`). Booking ditolak jika participant tidak menyetujui batasan.
-- **Penetapan Status:**
-  - Jika listing `price == 0` (FREE):
-    - Jika `approval_mode == 'AUTOMATIC'` &rarr; status langsung `CONFIRMED`.
-    - Jika `approval_mode == 'MANUAL'` &rarr; status `PENDING`.
-  - Jika listing `price > 0` (PAID) &rarr; status `PENDING` (menunggu pembayaran).
-- **Nilai Kembalian:** `['success' => bool, 'booking_id' => ?int, 'requires_payment' => bool, 'errors' => array]`.
+### 3.1. `public function book(): void`
+- **Kegunaan / Untuk Apa:** Memvalidasi dan memproses pengajuan pemesanan slot waktu yang dikirim oleh peserta dari halaman detail penawaran.
+- **Input yang Dibaca:** `$_POST['listing_id']`, `$_POST['slot_count']`, `$_POST['agreed_to_boundaries']`, `$_POST['notes']`.
+- **Logika Alur & Validasi Bisnis:**
+  1. Ambil `$participantId = $_SESSION['user']['id'];`
+  2. Cek Trust Score Peserta: Jika `$participant['trust_score'] < 70`, tolak pemesanan dan kembalikan dengan pesan bahwa akun dalam masa pembekuan skor.
+  3. Cek Listing: Pastikan listing ada dan berstatus `ACTIVE`.
+  4. Cek Self-Booking: Host dilarang memesan penawaran miliknya sendiri (`$listing['host_id'] !== $participantId`).
+  5. Cek Boundaries Agreement: Peserta **wajib mencentang** persetujuan batasan (`isset($_POST['agreed_to_boundaries']) && $_POST['agreed_to_boundaries'] == '1'`). Jika tidak dicentang, tolak pemesanan.
+  6. Cek Anti-Double-Booking: Peserta belum pernah mendaftar di sesi ini via `$this->bookingModel->hasUserBookedListing($listingId, $participantId)`.
+  7. Cek Sisa Kapasitas: Kuota yang diminta (`slot_count`) tidak boleh melebihi sisa kapasitas yang tersedia.
+  8. **Penentuan Status & Transaksi:**
+     - Hitung total harga: `$totalPrice = $listing['price'] * $slotCount;`
+     - Jika listing **GRATIS (`price == 0`)**:
+       - Jika `approval_mode == 'AUTOMATIC'` &rarr; status langsung `CONFIRMED`.
+       - Jika `approval_mode == 'MANUAL'` &rarr; status `PENDING` (menunggu persetujuan host).
+       - Simpan ke database via `$this->bookingModel->createBooking(...)`.
+       - Pasang flash alert sukses, lalu redirect ke `?page=my-bookings`.
+     - Jika listing **BERBAYAR (`price > 0`)**:
+       - Status awal `PENDING`.
+       - Simpan booking, lalu redirect langsung ke halaman checkout: `header("Location: /index.php?page=checkout&booking_id=" . $bookingId); exit;`
 
-### 3.2. `bookingApprove(PDO $pdo, int $bookingId, int $currentUserId): array`
-- **Kegunaan:** Menyetujui pendaftaran peserta oleh Host (untuk listing mode persetujuan manual).
-- **Validasi:** User yang melakukan aksi wajib pemilik listing yang bersangkutan. Status booking saat ini harus `PENDING`.
-- **Nilai Kembalian:** `['success' => bool, 'message' => string]`.
+### 3.2. `public function myBookings(): void`
+- **Kegunaan / Untuk Apa:** Menampilkan halaman "Pengalaman Saya" bagi peserta, berisi daftar seluruh sesi yang pernah dan akan diikuti beserta statusnya.
+- **Logika Alur:**
+  1. Ambil data booking peserta: `$myBookings = $this->bookingModel->getBookingsByParticipant($_SESSION['user']['id']);`
+  2. Siapkan judul halaman: `$pageTitle = "Pengalaman Saya - PINJAMORANG"`.
+  3. Rakit komponen View:
+     ```php
+     $extraScript = "/assets/js/booking.js"; // Dialog modal konfirmasi pembatalan
+     require_once __DIR__ . "/../view/layout/header.view.php";
+     require_once __DIR__ . "/../view/bookings/my_bookings.view.php";
+     require_once __DIR__ . "/../view/layout/footer.view.php";
+     ```
 
-### 3.3. `bookingReject(PDO $pdo, int $bookingId, int $currentUserId): array`
-- **Kegunaan:** Menolak pendaftaran peserta oleh Host.
-- **Validasi:** User yang melakukan aksi wajib pemilik listing. Status booking harus `PENDING`.
-- **Nilai Kembalian:** `['success' => bool, 'message' => string]`.
+### 3.3. `public function hostRequests(): void`
+- **Kegunaan / Untuk Apa:** Dashboard bagi Host untuk melihat daftar calon peserta yang mendaftar pada listing miliknya yang memerlukan persetujuan manual.
+- **Input yang Dibaca:** `$_GET['listing_id']` (opsional jika ingin filter per listing).
+- **Logika Alur:**
+  1. Ambil seluruh permintaan masuk untuk penawaran milik Host yang sedang login.
+  2. Rakit komponen View `app/view/bookings/host_requests.view.php`.
 
-### 3.4. `bookingCancel(PDO $pdo, int $bookingId, int $currentUserId): array`
-- **Kegunaan:** Membatalkan reservasi oleh peserta.
+### 3.4. `public function approve(): void`
+- **Kegunaan / Untuk Apa:** Host menyetujui pendaftaran calon peserta yang berstatus `PENDING`.
+- **Input yang Dibaca:** `$_POST['booking_id']`.
+- **Validasi Otorisasi:** Pastikan user yang menekan tombol setuju adalah Host pemilik listing tersebut.
+- **Logika Alur:**
+  1. Ubah status booking menjadi `CONFIRMED` via `$this->bookingModel->updateBookingStatus($bookingId, 'CONFIRMED')`.
+  2. Pasang flash alert: `$_SESSION['flash_message'] = ['type' => 'success', 'text' => 'Peserta berhasil disetujui! Link pertemuan kini telah dibagikan.'];`
+  3. Redirect kembali ke `?page=host-requests`.
+
+### 3.5. `public function reject(): void`
+- **Kegunaan / Untuk Apa:** Host menolak pendaftaran calon peserta.
+- **Input yang Dibaca:** `$_POST['booking_id']`.
+- **Logika Alur:**
+  1. Verifikasi kepemilikan Host.
+  2. Ubah status booking menjadi `REJECTED` via `$this->bookingModel->updateBookingStatus($bookingId, 'REJECTED')`.
+  3. Pasang flash alert informasi, lalu redirect kembali ke `?page=host-requests`.
+
+### 3.6. `public function cancel(): void`
+- **Kegunaan / Untuk Apa:** Membatalkan reservasi oleh peserta, dengan penegakan aturan Trust Score (anti-ghosting).
+- **Input yang Dibaca:** `$_POST['booking_id']`.
 - **Aturan Bisnis Anti-Ghosting:**
-  - Pembatalan > 2 jam sebelum sesi: Normal, tidak ada penalti skor.
-  - Pembatalan mendadak (< 2 jam sebelum sesi) atau mangkir (*No-Show*): Mengurangi Trust Score (-25 poin) untuk mencegah ghosting.
-- **Nilai Kembalian:** `['success' => bool, 'message' => string]`.
+  1. Ambil jadwal mulai listing dari booking tersebut.
+  2. Hitung selisih jam antara waktu saat ini dengan jam mulai sesi.
+  3. **Jika pembatalan mendadak (< 2 jam sebelum sesi mulai):**
+     - Berikan penalti pengurangan Trust Score (-25 poin):
+       `$this->userModel->updateTrustScore($_SESSION['user']['id'], -25);`
+     - Beri notifikasi peringatan: *"Reservasi dibatalkan. Karena pembatalan kurang dari 2 jam, skor reputasi Anda berkurang 25 poin."*
+  4. **Jika pembatalan normal (> 2 jam sebelum sesi mulai):**
+     - Tidak ada penalti skor.
+  5. Ubah status booking menjadi `CANCELLED` via `$this->bookingModel->cancelBooking($bookingId, $_SESSION['user']['id'])`.
+  6. Redirect kembali ke `?page=my-bookings`.
 
 ---
 
 ## 4. Checklist Implementasi
-- [ ] Validasi wajib persetujuan *boundaries* sebelum data booking diproses.
-- [ ] Larangan memesan slot pada penawaran milik diri sendiri.
-- [ ] Pengurangan kapasitas dan penanganan *race condition* (kapasitas tidak boleh terlampaui).
-- [ ] Penegakan aturan Trust & Karma Score pada pembatalan mendadak.
+- [ ] Validasi wajib persetujuan batasan interaksi (`agreed_to_boundaries == 1`).
+- [ ] Larangan memesan penawaran milik diri sendiri (*self-booking prevention*).
+- [ ] Penegakan aturan penalti Trust Score (-25 poin) saat pembatalan mendadak (< 2 jam).
+- [ ] Link sesi privat hanya dibagikan di halaman View setelah status `CONFIRMED`.
 
 ---
 
@@ -74,11 +137,9 @@ Dokumen Product Requirement Document (PRD) teknis untuk implementasi controller 
 
 | ID Tes | Kategori | Skenario Pengujian | Ekspektasi Hasil |
 |---|---|---|---|
-| TC-BKC-01 | Happy Path | Booking listing gratis mode AUTOMATIC dengan boundaries disetujui | Sukses, status booking langsung 'CONFIRMED' |
-| TC-BKC-02 | Validasi | Booking tanpa mencentang persetujuan boundaries | Ditolak, error "Anda wajib menyetujui batasan interaksi" |
-| TC-BKC-03 | Validasi | Host mencoba memesan penawaran miliknya sendiri | Ditolak, error "Anda tidak dapat memesan penawaran Anda sendiri" |
-| TC-BKC-04 | Boundary | Booking pada listing yang kapasitasnya sudah 0 (penuh) | Ditolak, error "Kapasitas penawaran sudah penuh" |
-| TC-BKC-05 | Constraint | Booking ulang pada listing yang sama oleh user yang sama | Ditolak, error "Anda sudah terdaftar pada penawaran ini" |
-| TC-BKC-06 | Otorisasi | Host menyetujui (approve) booking peserta | Status booking berubah menjadi 'CONFIRMED' |
-| TC-BKC-07 | Aturan Bisnis | Participant dengan Trust Score 50 mencoba mengajukan booking | Ditolak, error akun dalam masa pembekuan / skor rendah |
-
+| TC-BC-01 | Happy Path | Booking listing gratis mode AUTOMATIC dengan batasan disetujui | Status langsung CONFIRMED, dialihkan ke my-bookings |
+| TC-BC-02 | Validasi | Booking tanpa menyetujui batasan interaksi | Ditolak, pesan "Wajib menyetujui batasan interaksi" |
+| TC-BC-03 | Self-Booking | Host mencoba memesan slot di penawaran miliknya | Ditolak, pesan "Tidak dapat memesan penawaran sendiri" |
+| TC-BC-04 | Host Approval | Host menyetujui pendaftaran peserta | Status booking berubah jadi CONFIRMED |
+| TC-BC-05 | Anti-Ghosting | Peserta membatalkan sesi 30 menit sebelum acara | Booking dibatalkan, Trust Score peserta berkurang 25 poin |
+| TC-BC-06 | Pembatalan Normal | Peserta membatalkan sesi 1 hari sebelum acara | Booking dibatalkan tanpa penalti Trust Score |
