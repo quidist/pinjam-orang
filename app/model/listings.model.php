@@ -67,6 +67,31 @@ class listingsModel{
     }
 
     public function getListingById(PDO $pdo, int $id): array|false{
+        $stmt = $this->pdo->prepare("
+        SELECT
+            listing.*,
+            user.name AS host_name,
+            user.avatar_url AS host_avatar,
+            user.bio AS host_bio,
+            user.trust_score AS host_trust_score,
+            user.is_verified AS host_is_verified
+        FROM listings listing
+        JOIN users user
+            ON listing.host_id = user.id
+            WHERE listing.id = :id
+        ");
+
+        $sql = $stmt->execute([
+            ':id' => $id
+        ]);
         
+        if (!$sql){
+            return false;
+        }
+
+        return $sql->fetchAll(PDO::FETCH_ASSOC);
     }
+
+    
 }
+
