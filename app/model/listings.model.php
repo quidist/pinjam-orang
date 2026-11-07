@@ -173,6 +173,28 @@ class listingsModel{
         return $stmt->rowCount() > 0;
     }
 
-    
+    public function getRemainingCapacity(PDO $pdo, int $listingId): int{
+        $stmt = $this->pdo->prepare("
+        SELECT capacity,
+        COALESCE(
+            (SELECT SUM(slot_count) 
+            FROM bookings 
+            WHERE listing_id = :listing_id 
+                AND status IN ('CONFIRMED', 'PENDING')
+            ), 0
+        ) AS total_booked
+        FROM listings
+        WHERE id = :listing_id");
+
+        $sql = $stmt->execute(['listing_id' => $listingId]);
+
+        if(!$sql){
+            return false;
+        }
+
+        $remaining = (int)$sql['capacity'] - (int)$sql['total_booked'];
+
+        return max(0, $remaining);
+    }
 }
 
