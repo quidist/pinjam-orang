@@ -196,5 +196,41 @@ class listingsModel{
 
         return max(0, $remaining);
     }
+
+    public function hasOverlappingListing(
+    PDO $pdo, 
+    int $hostId, 
+    string $date, 
+    string $startTime, 
+    string $endTime, 
+    ?int $excludeListingId = null
+    ): bool {
+        $sql = "
+            SELECT COUNT(*) 
+            FROM listings 
+            WHERE host_id = :host_id 
+            AND listing_date = :listing_date 
+            AND status IN ('DRAFT', 'ACTIVE')
+            AND start_time < :end_time 
+            AND end_time > :start_time
+        ";
+
+        $params = [
+            ':host_id'      => $hostId,
+            ':listing_date' => $date,
+            ':start_time'   => $startTime,
+            ':end_time'     => $endTime
+        ];
+
+        if ($excludeListingId !== null) {
+            $sql .= " AND id != :exclude_id";
+            $params[':exclude_id'] = $excludeListingId;
+        }
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+
+        return (int)$stmt->fetchColumn() > 0;
+    }
 }
 
