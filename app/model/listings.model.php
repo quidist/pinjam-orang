@@ -105,6 +105,52 @@ class listingsModel{
         return $sql->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    
+    public function updateListing(PDO $pdo, int $id, int $host_id, array $data): bool{
+        $stmt = $this->pdo->prepare("
+        UPDATE listings 
+        SET 
+            title = :title,
+            description = :description,
+            session_type = :session_type,
+            listing_date = :listing_date,
+            start_time = :start_time,
+            end_time = :end_time,
+            duration_minutes = :duration_minutes,
+            capacity = :capacity,
+            price = :price,
+            location = :location,
+            approval_mode = :approval_mode,
+            boundaries = :boundaries
+        WHERE id = :id 
+        AND host_id = :host_id
+        AND status IN ('DRAFT', 'ACTIVE')
+        AND (
+            SELECT COUNT(*) 
+            FROM bookings 
+            WHERE listing_id = :id AND status = 'CONFIRMED'
+            ) = 0 
+        ");
+
+        $sql = $stmt->execute([
+            ':title' => $data['title'],
+            ':description' => $data['description'],
+            ':session_type' => $data['session_type'],
+            ':listing_date' => $data['listing_date'],
+            ':start_time' => $data['start_time'],
+            ':end_time' => $data['end_time'],
+            'duration_time' => $data['duration_time'],
+            ':capacity' => $data['capacity'],
+            ':price' => $data['price'],
+            ':location' => $data['location'],
+            ':approval_mode' => $data['approval_mode'],
+            ':boundaries' => $data['boundaries'],
+        ]);
+
+        return $sql && $stmt->rowCount() > 0;
+    }
+
+    public function updateListingStatus(PDO $pdo, int $id, string $status): bool{
+        
+    }
 }
 
