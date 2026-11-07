@@ -150,7 +150,29 @@ class listingsModel{
     }
 
     public function updateListingStatus(PDO $pdo, int $id, string $status): bool{
-        
+        $allowed = ['DRAFT', 'ACTIVE', 'COMPLETED', 'CANCELLED'];
+
+        IF (!in_array($status, $allowed, true)){
+            return false;
+        }
+
+        $stmt = $this->pdo->prepare("
+        UPDATE listings
+        SET status = :status
+        WHERE id = :id");
+
+        $sql = $stmt->execute([
+            ':id' => $id,
+            ':status' => $status
+        ]);
+
+        if (!$sql){
+            return false;
+        }
+
+        return $stmt->rowCount() > 0;
     }
+
+    
 }
 
