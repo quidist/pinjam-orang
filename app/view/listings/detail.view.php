@@ -6,7 +6,7 @@
         <span>Rincian Penawaran Waktu</span>
     </div>
 
-    <div style="display: grid; grid-template-columns: 1.6fr 1fr; gap: 40px; align-items: start;">
+    <div class="detail-grid">
         <!-- KOLOM KIRI: Detail Pengalaman, Profil Host, Boundaries -->
         <div>
             <!-- Top Badges -->
