@@ -145,7 +145,8 @@ input, select {
   align-items: stretch;
   display: flex;
   height: 100%;
-  gap: 34px;
+  gap: 22px;
+  white-space: nowrap;
 }
 
 .desktop-nav a {
@@ -155,6 +156,8 @@ input, select {
   font-size: 13px;
   font-weight: 600;
   position: relative;
+  text-decoration: none;
+  transition: color 0.15s ease;
 }
 
 .desktop-nav a:hover,
@@ -175,24 +178,59 @@ input, select {
 .desktop-actions {
   align-items: center;
   display: flex;
-  gap: 18px;
+  gap: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.user-greeting {
-  font-size: 13px;
+.user-pill {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid var(--color-border);
+  border-radius: 99px;
+  display: flex;
+  gap: 8px;
+  padding: 4px 8px 4px 12px;
+  transition: border-color 0.15s ease;
+}
+
+.user-pill:hover {
+  border-color: #cbd5e1;
+}
+
+.user-pill-name {
   color: var(--color-slate-deep);
-  font-weight: 600;
-}
-
-.nav-link-subtle {
-  color: #475569;
   font-size: 13px;
-  font-weight: 600;
-  transition: color 0.15s ease;
+  font-weight: 700;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
 }
 
-.nav-link-subtle:hover {
+.user-pill-name:hover {
   color: var(--color-primary);
+}
+
+.user-pill-divider {
+  background: var(--color-border);
+  height: 14px;
+  width: 1px;
+}
+
+.user-pill-logout {
+  background: white;
+  border: 1px solid #fecaca;
+  border-radius: 99px;
+  color: #dc2626;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.user-pill-logout:hover {
+  background: #fef2f2;
 }
 
 .login-link {
@@ -1080,10 +1118,21 @@ footer {
 /* =============================================================================
    7. RESPONSIVE BREAKPOINTS
    ============================================================================= */
-@media (max-width: 980px) {
-  .desktop-nav {
-    display: none;
+@media (max-width: 1040px) {
+  .desktop-nav,
+  .desktop-actions {
+    display: none !important;
   }
+  .menu-button {
+    display: inline-flex !important;
+  }
+  .nav-inner {
+    height: 68px;
+    padding: 0 20px;
+  }
+}
+
+@media (max-width: 980px) {
   .hero-grid {
     gap: 32px;
     grid-template-columns: 1fr 1fr;
@@ -1110,31 +1159,42 @@ footer {
 }
 
 @media (max-width: 720px) {
-  .nav-inner {
-    height: 68px;
-    padding: 0 20px;
-  }
-  .brand-copy small,
-  .desktop-actions {
+  .brand-copy small {
     display: none;
-  }
-  .menu-button {
-    display: inline-flex;
   }
   .mobile-nav {
     background: white;
     border-top: 1px solid var(--color-border);
     display: flex;
     flex-direction: column;
-    gap: 18px;
-    padding: 22px 20px 26px;
+    gap: 16px;
+    padding: 20px 20px 28px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.06);
+  }
+  .mobile-nav-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .mobile-nav-title {
+    color: var(--color-muted);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 2px;
   }
   .mobile-nav a {
     color: var(--color-slate-deep);
     font-size: 14px;
-    font-weight: 700;
+    font-weight: 600;
     text-decoration: none;
+    padding: 4px 0;
   }
+  .mobile-nav a:hover {
+    color: var(--color-primary);
+  }
+}
   .hero {
     padding: 58px 20px 40px;
   }

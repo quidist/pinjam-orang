@@ -15,7 +15,7 @@ if (session_status() === PHP_SESSION_NONE) {
 <div class="app-shell">
     <header class="navbar">
         <div class="nav-inner">
-            <a aria-label="PINJAMORANG beranda" class="brand" href="/index.php?page=home">
+            <a aria-label="PINJAMORANG beranda" class="brand" href="/index.php?page=home" style="flex-shrink: 0;">
                 <span class="brand-mark">
                     <span>P</span>
                 </span>
@@ -25,26 +25,43 @@ if (session_status() === PHP_SESSION_NONE) {
                 </span>
             </a>
 
+            <!-- Navigasi Tengah -->
             <nav class="desktop-nav" aria-label="Navigasi utama">
-                <a class="<?= (($_GET['page'] ?? 'home') === 'listings' || ($_GET['page'] ?? '') === 'home') ? 'active' : '' ?>" href="/index.php?page=listings">
-                    Jelajahi katalog
+                <?php $currentPage = $_GET['page'] ?? 'home'; ?>
+                <a class="<?= in_array($currentPage, ['home', 'listings', 'listing-detail'], true) ? 'active' : '' ?>" href="/index.php?page=listings">
+                    Katalog
                 </a>
-                <a href="/index.php?page=listings#cara-kerja">Cara kerjanya</a>
-                <a href="/index.php?page=listings#keamanan">Keamanan</a>
+                <?php if (isset($_SESSION['user']['id'])): ?>
+                    <a class="<?= $currentPage === 'my-bookings' ? 'active' : '' ?>" href="/index.php?page=my-bookings" title="Sesi yang saya ikuti sebagai peserta">
+                        Pengalaman Saya
+                    </a>
+                    <a class="<?= $currentPage === 'my-listings' ? 'active' : '' ?>" href="/index.php?page=my-listings" title="Kelola penawaran waktu milik saya">
+                        Penawaran Saya
+                    </a>
+                    <a class="<?= $currentPage === 'host-requests' ? 'active' : '' ?>" href="/index.php?page=host-requests" title="Permintaan peserta yang mendaftar">
+                        Permintaan Masuk
+                    </a>
+                <?php else: ?>
+                    <a href="/index.php?page=listings#cara-kerja">Cara kerjanya</a>
+                    <a href="/index.php?page=listings#keamanan">Keamanan</a>
+                <?php endif; ?>
             </nav>
 
+            <!-- Aksi Kanan & Profil -->
             <div class="desktop-actions">
                 <?php if (isset($_SESSION['user']['id'])): ?>
-                    <a href="/index.php?page=my-bookings" class="nav-link-subtle" title="Sesi yang saya ikuti sebagai peserta">Pengalaman Saya</a>
-                    <a href="/index.php?page=my-listings" class="nav-link-subtle" title="Kelola penawaran waktu milik saya">Penawaran Saya</a>
-                    <a href="/index.php?page=host-requests" class="nav-link-subtle" title="Tinjau calon peserta yang mendaftar">Permintaan Masuk</a>
-                    <a href="/index.php?page=create-listing" class="button button-primary">
+                    <a href="/index.php?page=create-listing" class="button button-primary" style="flex-shrink: 0;">
                         + Tawarkan Waktu
                     </a>
-                    <a href="/index.php?page=my-profile" class="user-greeting" title="Buka profil saya">
-                        👤 <?= htmlspecialchars($_SESSION['user']['name'] ?? 'Profil') ?>
-                    </a>
-                    <a href="/index.php?page=logout" class="nav-link-subtle" title="Keluar dari akun">Keluar</a>
+                    <div class="user-pill">
+                        <a href="/index.php?page=my-profile" class="user-pill-name" title="Buka profil saya">
+                            👤 <?= htmlspecialchars(mb_strimwidth($_SESSION['user']['name'] ?? 'Profil', 0, 16, '...')) ?>
+                        </a>
+                        <span class="user-pill-divider"></span>
+                        <a href="/index.php?page=logout" class="user-pill-logout" title="Keluar dari akun">
+                            Keluar
+                        </a>
+                    </div>
                 <?php else: ?>
                     <a class="login-link" href="/index.php?page=login">Masuk</a>
                     <a href="/index.php?page=register" class="button button-primary">
@@ -65,19 +82,41 @@ if (session_status() === PHP_SESSION_NONE) {
 
         <!-- Menu Mobile Drawer -->
         <div id="mobileNavDrawer" class="mobile-nav" style="display: none;">
-            <a href="/index.php?page=listings">Jelajahi katalog</a>
-            <a href="/index.php?page=listings#cara-kerja">Cara kerjanya</a>
-            <a href="/index.php?page=listings#keamanan">Keamanan</a>
+            <div class="mobile-nav-group">
+                <span class="mobile-nav-title">Jelajah</span>
+                <a href="/index.php?page=listings">🔍 Jelajahi Katalog Waktu</a>
+                <a href="/index.php?page=listings#cara-kerja">📖 Cara Kerjanya</a>
+                <a href="/index.php?page=listings#keamanan">🛡️ Panduan Keamanan</a>
+            </div>
+
             <?php if (isset($_SESSION['user']['id'])): ?>
-                <a href="/index.php?page=my-bookings">Pengalaman Saya (Peserta)</a>
-                <a href="/index.php?page=my-listings">Penawaran Saya (Host)</a>
-                <a href="/index.php?page=host-requests">Permintaan Masuk Peserta</a>
-                <a href="/index.php?page=create-listing">+ Tawarkan Waktu Baru</a>
-                <a href="/index.php?page=my-profile">Profil (<?= htmlspecialchars($_SESSION['user']['name'] ?? '') ?>)</a>
-                <a href="/index.php?page=logout">Keluar</a>
+                <div class="mobile-nav-group">
+                    <span class="mobile-nav-title">Aktivitas Saya</span>
+                    <a href="/index.php?page=my-bookings">🎒 Pengalaman Saya (Peserta)</a>
+                    <a href="/index.php?page=my-listings">📅 Penawaran Saya (Host)</a>
+                    <a href="/index.php?page=host-requests">👥 Permintaan Masuk Peserta</a>
+                </div>
+
+                <div class="mobile-nav-group" style="padding-top: 6px;">
+                    <a href="/index.php?page=create-listing" class="button button-primary" style="width: 100%; justify-content: center; min-height: 44px;">
+                        + Tawarkan Waktu Baru
+                    </a>
+                </div>
+
+                <div class="mobile-nav-group" style="border-top: 1px solid var(--color-border); padding-top: 14px;">
+                    <span class="mobile-nav-title">Akun Anda</span>
+                    <a href="/index.php?page=my-profile">⚙️ Profil & Reputasi (<?= htmlspecialchars($_SESSION['user']['name'] ?? '') ?>)</a>
+                    <a href="/index.php?page=logout" style="color: #dc2626;">🚪 Keluar dari Akun</a>
+                </div>
             <?php else: ?>
-                <a href="/index.php?page=login">Masuk ke Akun</a>
-                <a href="/index.php?page=register" class="button button-primary">Daftar sekarang</a>
+                <div class="mobile-nav-group" style="border-top: 1px solid var(--color-border); padding-top: 14px;">
+                    <a href="/index.php?page=login" class="button button-outline" style="width: 100%; justify-content: center; min-height: 42px; margin-bottom: 8px;">
+                        Masuk ke Akun
+                    </a>
+                    <a href="/index.php?page=register" class="button button-primary" style="width: 100%; justify-content: center; min-height: 42px;">
+                        Daftar Sekarang
+                    </a>
+                </div>
             <?php endif; ?>
         </div>
     </header>
