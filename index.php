@@ -8,6 +8,30 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Handler static assets jika dijalankan via PHP Built-in Server dari direktori root
+if (php_sapi_name() === 'cli-server') {
+    $reqPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+    if (str_starts_with($reqPath, '/assets/')) {
+        $staticFile = __DIR__ . '/public' . $reqPath;
+        if (is_file($staticFile)) {
+            $ext = pathinfo($staticFile, PATHINFO_EXTENSION);
+            $mimeMap = [
+                'css' => 'text/css',
+                'js'  => 'application/javascript',
+                'png' => 'image/png',
+                'jpg' => 'image/jpeg',
+                'jpeg'=> 'image/jpeg',
+                'svg' => 'image/svg+xml'
+            ];
+            if (isset($mimeMap[$ext])) {
+                header("Content-Type: " . $mimeMap[$ext]);
+            }
+            readfile($staticFile);
+            exit;
+        }
+    }
+}
+
 require_once __DIR__ . "/app/config/database.php";
 
 $page = $_GET['page'] ?? 'home';
@@ -53,6 +77,66 @@ switch ($page) {
         break;
 
     // -------------------------------------------------------------------------
+    // Modul Pemesanan Slot Waktu (Bookings)
+    // -------------------------------------------------------------------------
+    case 'book':
+        require_once __DIR__ . "/app/controller/bookings.controller.php";
+        $controller = new BookingsController($pdo);
+        $controller->book();
+        break;
+
+    case 'my-bookings':
+        require_once __DIR__ . "/app/controller/bookings.controller.php";
+        $controller = new BookingsController($pdo);
+        $controller->myBookings();
+        break;
+
+    case 'host-requests':
+        require_once __DIR__ . "/app/controller/bookings.controller.php";
+        $controller = new BookingsController($pdo);
+        $controller->hostRequests();
+        break;
+
+    case 'approve-booking':
+        require_once __DIR__ . "/app/controller/bookings.controller.php";
+        $controller = new BookingsController($pdo);
+        $controller->approve();
+        break;
+
+    case 'reject-booking':
+        require_once __DIR__ . "/app/controller/bookings.controller.php";
+        $controller = new BookingsController($pdo);
+        $controller->reject();
+        break;
+
+    case 'cancel-booking':
+        require_once __DIR__ . "/app/controller/bookings.controller.php";
+        $controller = new BookingsController($pdo);
+        $controller->cancel();
+        break;
+
+    // -------------------------------------------------------------------------
+    // Modul Pembayaran & Transaksi (Payments - Fase 2)
+    // -------------------------------------------------------------------------
+    case 'checkout':
+        require_once __DIR__ . "/app/controller/payments.controller.php";
+        $controller = new PaymentsController($pdo);
+        $controller->showCheckout();
+        break;
+
+    case 'confirm-payment':
+        require_once __DIR__ . "/app/controller/payments.controller.php";
+        $controller = new PaymentsController($pdo);
+        $controller->confirmPayment();
+        break;
+
+    case 'payment-receipt':
+        require_once __DIR__ . "/app/controller/payments.controller.php";
+        $controller = new PaymentsController($pdo);
+        $controller->receipt();
+        break;
+
+    // -------------------------------------------------------------------------
     // Modul Autentikasi Pengguna
     // -------------------------------------------------------------------------
     case 'login':
@@ -79,6 +163,48 @@ switch ($page) {
         require_once __DIR__ . "/app/controller/auth.controller.php";
         $controller = new AuthController($pdo);
         $controller->logout();
+        break;
+
+    // -------------------------------------------------------------------------
+    // Modul Profil Pengguna & Reputasi (Users)
+    // -------------------------------------------------------------------------
+    case 'profile':
+        require_once __DIR__ . "/app/controller/users.controller.php";
+        $controller = new UsersController($pdo);
+        $controller->showProfile();
+        break;
+
+    case 'my-profile':
+        require_once __DIR__ . "/app/controller/users.controller.php";
+        $controller = new UsersController($pdo);
+        $controller->showMyProfile();
+        break;
+
+    case 'update-profile':
+        require_once __DIR__ . "/app/controller/users.controller.php";
+        $controller = new UsersController($pdo);
+        $controller->updateProfile();
+        break;
+
+    case 'change-password':
+        require_once __DIR__ . "/app/controller/users.controller.php";
+        $controller = new UsersController($pdo);
+        $controller->changePassword();
+        break;
+
+    // -------------------------------------------------------------------------
+    // Modul Ulasan & Reputasi Bintang (Reviews - Fase 3)
+    // -------------------------------------------------------------------------
+    case 'review':
+        require_once __DIR__ . "/app/controller/reviews.controller.php";
+        $controller = new ReviewsController($pdo);
+        $controller->showReviewForm();
+        break;
+
+    case 'submit-review':
+        require_once __DIR__ . "/app/controller/reviews.controller.php";
+        $controller = new ReviewsController($pdo);
+        $controller->submitReview();
         break;
 
     default:
