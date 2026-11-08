@@ -189,6 +189,18 @@ class BookingsController {
             exit;
         }
 
+        // Validasi Sisa Kuota Sesi sebelum menyetujui (Cegah Overbooking)
+        $remaining = $this->listingModel->getRemainingCapacity($this->pdo, (int)$booking['listing_id']);
+        $slotCount = (int)$booking['slot_count'];
+        if ($remaining < $slotCount) {
+            $_SESSION['flash_message'] = [
+                'type' => 'danger', 
+                'text' => 'Gagal menyetujui permintaan: Sisa kuota penawaran ini sudah tidak mencukupi (Tersisa: ' . $remaining . ' slot, Permintaan: ' . $slotCount . ' slot).'
+            ];
+            header("Location: /index.php?page=host-requests");
+            exit;
+        }
+
         $this->bookingModel->updateBookingStatus($this->pdo, $bookingId, 'CONFIRMED');
         $_SESSION['flash_message'] = [
             'type' => 'success', 
