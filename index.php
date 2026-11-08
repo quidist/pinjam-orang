@@ -92,6 +92,27 @@ switch ($page) {
         break;
 
     // -------------------------------------------------------------------------
+    // Modul Pembayaran & Transaksi (Payments - Fase 2)
+    // -------------------------------------------------------------------------
+    case 'checkout':
+        require_once __DIR__ . "/app/controller/payments.controller.php";
+        $controller = new PaymentsController($pdo);
+        $controller->showCheckout();
+        break;
+
+    case 'confirm-payment':
+        require_once __DIR__ . "/app/controller/payments.controller.php";
+        $controller = new PaymentsController($pdo);
+        $controller->confirmPayment();
+        break;
+
+    case 'payment-receipt':
+        require_once __DIR__ . "/app/controller/payments.controller.php";
+        $controller = new PaymentsController($pdo);
+        $controller->receipt();
+        break;
+
+    // -------------------------------------------------------------------------
     // Modul Autentikasi Pengguna
     // -------------------------------------------------------------------------
     case 'login':
