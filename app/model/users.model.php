@@ -1,131 +1,123 @@
 <?php
 
-class UserModel{
+class UserModel {
     private PDO $pdo;
 
-    public function __construct(PDO $pdo){
+    public function __construct(PDO $pdo) {
         $this->pdo = $pdo;
     }
 
-    public function createuser(PDO $pdo, array $data): int | false{
+    /**
+     * 3.1. createUser: Membuat user baru
+     */
+    public function createUser(PDO $pdo, array $data): int|false {
         $stmt = $this->pdo->prepare("
-        INSERT INTO users (name, email, password_hash) 
-        VALUES (:name, :email, :password_hash)");
+            INSERT INTO users (name, email, password_hash) 
+            VALUES (:name, :email, :password_hash)
+        ");
 
-        $create = $stmt->execute([
-            ':nama' => $data['nama'],
-            ':email' => $data['email'],
+        $success = $stmt->execute([
+            ':name'          => $data['name'],
+            ':email'         => $data['email'],
             ':password_hash' => $data['password_hash']
         ]);
 
-        if(!$create){
+        if (!$success) {
             return false;
         }
 
         return (int) $this->pdo->lastInsertId();
     }
 
-    public function getUserByEmail(PDO $pdo, string $email): array | false{
+    /**
+     * 3.2. getUserByEmail: Mengambil data user berdasarkan email
+     */
+    public function getUserByEmail(PDO $pdo, string $email): array|false {
         $stmt = $this->pdo->prepare("
-        SELECT * WHERE
-        email = :email");
+            SELECT * FROM users 
+            WHERE email = :email
+        ");
 
-        $getUserEmail = $stmt->execute([
-            ':email' => $email
-        ]);
-
-        if(!$getUser){
-            return false;
-        }
-
-        return (array) $stmt->fetch(PDO::FETCH_ASSOC);
+        $stmt->execute([':email' => $email]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    public function getUserById(PDO $pdo, int $id, bool $safe = true ): array | false{
-        if ($safe === true){
+    /**
+     * 3.3. getUserById: Mengambil profil user dengan opsi sembunyikan password
+     */
+    public function getUserById(PDO $pdo, int $id, bool $safe = true): array|false {
+        if ($safe) {
             $query = "SELECT id, name, email, phone, bio, avatar_url, trust_score, is_verified, created_at FROM users WHERE id = :id";
-        }else {
+        } else {
             $query = "SELECT * FROM users WHERE id = :id";
         }
 
         $stmt = $this->pdo->prepare($query);
-
-        if (!$stmt){
-            return false;
-        }
-
-        $getUserId = $stmt->execute([
-            ':id' => $id]);
-
+        $stmt->execute([':id' => $id]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    public function updateProfile(PDO $pdo, int $id, array $data): bool{
+    /**
+     * 3.4. updateProfile: Memperbarui nama, telepon, bio, avatar
+     */
+    public function updateProfile(PDO $pdo, int $id, array $data): bool {
         $stmt = $this->pdo->prepare("
-        UPDATE users
-        SET name = :data, phone = :data, bio = :bio, avatar_url = :avatar_url
-        WHERE id = :id");
+            UPDATE users
+            SET name = :name, phone = :phone, bio = :bio, avatar_url = :avatar_url
+            WHERE id = :id
+        ");
 
-        $updateUser = $stmt->execute([
-            ':data' => $data, 
-            ':data' => $id]);
-
-        if (!$updateUser){
-            return false;
-        }
-
-        return true;
-    }
-
-    public function updatePassword(PDO $pdo, int $id, string $password_hash): bool{
-        $stmt = $this->pdo->prepare("
-        UPDATE FROM users
-        SET password_hash = :password_hash
-        WHERE id = :id");
-
-        $updatePass = $this->execute([
-            ':password_hash' => $password_hash, 
-            ':id' => $id]);
-
-        if (!$updatePass){
-            return false;
-        }
-
-        return true;
-    }
-
-    public function updateTrustScore(PDO $PDO, int $id, int $pointDelta): bool{
-        $stmt = $this->pdo->prepare("
-        UPDATE FROM users
-        SET trust_score = LEAST(100, GREATEST(0, :trust_score + :point_delta))
-        WHERE id = :id");
-
-        $updateScore = $stmt->execute([
-            ':point_delta' => $point_delta,
-            ':id' => $id
+        return $stmt->execute([
+            ':name'       => $data['name'],
+            ':phone'      => $data['phone'] ?? null,
+            ':bio'        => $data['bio'] ?? null,
+            ':avatar_url' => $data['avatar_url'] ?? null,
+            ':id'         => $id
         ]);
-
-        if (!$update_score){
-            return false;
-        }
-
-        return true; 
     }
 
-    public function isEmailExist(PDO $pdo, string $email): bool{
+    /**
+     * 3.5. updatePassword: Mengganti kata sandi
+     */
+    public function updatePassword(PDO $pdo, int $id, string $passwordHash): bool {
         $stmt = $this->pdo->prepare("
-        SELECT * FROM users
-        WHERE email = :email");
+            UPDATE users
+            SET password_hash = :password_hash
+            WHERE id = :id
+        ");
 
-        $isExist = $stmt->execute([
-            ':email' => $email
+        return $stmt->execute([
+            ':password_hash' => $passwordHash,
+            ':id'            => $id
         ]);
-
-        if(!$isExist){
-            return false;
-        }
-
-        return true;
     }
 
+    /**
+     * 3.6. updateTrustScore: Menambah atau mengurangi reputasi Trust Score (0-100)
+     */
+    public function updateTrustScore(PDO $pdo, int $id, int $pointDelta): bool {
+        $stmt = $this->pdo->prepare("
+            UPDATE users
+            SET trust_score = LEAST(100, GREATEST(0, trust_score + :delta))
+            WHERE id = :id
+        ");
+
+        return $stmt->execute([
+            ':delta' => $pointDelta,
+            ':id'    => $id
+        ]);
+    }
+
+    /**
+     * 3.7. isEmailExist: Cek apakah email sudah terdaftar
+     */
+    public function isEmailExist(PDO $pdo, string $email): bool {
+        $stmt = $this->pdo->prepare("
+            SELECT COUNT(*) FROM users
+            WHERE email = :email
+        ");
+
+        $stmt->execute([':email' => $email]);
+        return (int)$stmt->fetchColumn() > 0;
+    }
 }
