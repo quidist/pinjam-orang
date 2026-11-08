@@ -168,6 +168,21 @@ switch ($page) {
         $controller->changePassword();
         break;
 
+    // -------------------------------------------------------------------------
+    // Modul Ulasan & Reputasi Bintang (Reviews - Fase 3)
+    // -------------------------------------------------------------------------
+    case 'review':
+        require_once __DIR__ . "/app/controller/reviews.controller.php";
+        $controller = new ReviewsController($pdo);
+        $controller->showReviewForm();
+        break;
+
+    case 'submit-review':
+        require_once __DIR__ . "/app/controller/reviews.controller.php";
+        $controller = new ReviewsController($pdo);
+        $controller->submitReview();
+        break;
+
     default:
         http_response_code(404);
         require_once __DIR__ . "/app/view/layout/header.view.php";
