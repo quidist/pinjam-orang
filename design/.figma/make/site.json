@@ -1,0 +1,10 @@
+{
+  "description": "A polished website that applies a provided design system to deliver a consistent, professional experience for its intended audience.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
