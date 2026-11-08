@@ -53,6 +53,45 @@ switch ($page) {
         break;
 
     // -------------------------------------------------------------------------
+    // Modul Pemesanan Slot Waktu (Bookings)
+    // -------------------------------------------------------------------------
+    case 'book':
+        require_once __DIR__ . "/app/controller/bookings.controller.php";
+        $controller = new BookingsController($pdo);
+        $controller->book();
+        break;
+
+    case 'my-bookings':
+        require_once __DIR__ . "/app/controller/bookings.controller.php";
+        $controller = new BookingsController($pdo);
+        $controller->myBookings();
+        break;
+
+    case 'host-requests':
+        require_once __DIR__ . "/app/controller/bookings.controller.php";
+        $controller = new BookingsController($pdo);
+        $controller->hostRequests();
+        break;
+
+    case 'approve-booking':
+        require_once __DIR__ . "/app/controller/bookings.controller.php";
+        $controller = new BookingsController($pdo);
+        $controller->approve();
+        break;
+
+    case 'reject-booking':
+        require_once __DIR__ . "/app/controller/bookings.controller.php";
+        $controller = new BookingsController($pdo);
+        $controller->reject();
+        break;
+
+    case 'cancel-booking':
+        require_once __DIR__ . "/app/controller/bookings.controller.php";
+        $controller = new BookingsController($pdo);
+        $controller->cancel();
+        break;
+
+    // -------------------------------------------------------------------------
     // Modul Autentikasi Pengguna
     // -------------------------------------------------------------------------
     case 'login':
