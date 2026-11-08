@@ -201,9 +201,11 @@ class ListingsModel {
     }
 
     /**
-     * 3.7. getRemainingCapacity: Menghitung sisa kuota kapasitas slot
+     * 3.7. getRemainingCapacity: Menghitung sisa kuota kapasitas slot (hanya pemesanan CONFIRMED yang memotong kuota)
      */
-    public function getRemainingCapacity(PDO $pdo, int $listingId): int {
+    public function getRemainingCapacity(PDO|int $pdoOrListingId, ?int $listingId = null): int {
+        $targetId = ($pdoOrListingId instanceof PDO) ? (int)$listingId : (int)$pdoOrListingId;
+
         $stmt = $this->pdo->prepare("
             SELECT 
                 capacity,
@@ -211,14 +213,14 @@ class ListingsModel {
                     (SELECT SUM(slot_count) 
                      FROM bookings 
                      WHERE listing_id = :listing_id 
-                       AND status IN ('CONFIRMED', 'PENDING')
+                       AND status = 'CONFIRMED'
                     ), 0
                 ) AS total_booked
             FROM listings
             WHERE id = :listing_id
         ");
 
-        $stmt->execute([':listing_id' => $listingId]);
+        $stmt->execute([':listing_id' => $targetId]);
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$result) {
