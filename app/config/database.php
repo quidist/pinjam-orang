@@ -19,7 +19,7 @@ try {
         PDO::ERRMODE_EXCEPTION
     );
 
-    echo "Database berhasil terhubung";
+    // Database berhasil terhubung
 }catch (PDOException $e){
     die("Koneksi gagal: " . $e->getMessage());
 }
