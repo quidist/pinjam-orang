@@ -8,6 +8,30 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Handler static assets jika dijalankan via PHP Built-in Server dari direktori root
+if (php_sapi_name() === 'cli-server') {
+    $reqPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+    if (str_starts_with($reqPath, '/assets/')) {
+        $staticFile = __DIR__ . '/public' . $reqPath;
+        if (is_file($staticFile)) {
+            $ext = pathinfo($staticFile, PATHINFO_EXTENSION);
+            $mimeMap = [
+                'css' => 'text/css',
+                'js'  => 'application/javascript',
+                'png' => 'image/png',
+                'jpg' => 'image/jpeg',
+                'jpeg'=> 'image/jpeg',
+                'svg' => 'image/svg+xml'
+            ];
+            if (isset($mimeMap[$ext])) {
+                header("Content-Type: " . $mimeMap[$ext]);
+            }
+            readfile($staticFile);
+            exit;
+        }
+    }
+}
+
 require_once __DIR__ . "/app/config/database.php";
 
 $page = $_GET['page'] ?? 'home';
