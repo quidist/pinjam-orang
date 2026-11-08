@@ -35,7 +35,9 @@ if (session_status() === PHP_SESSION_NONE) {
 
             <div class="desktop-actions">
                 <?php if (isset($_SESSION['user']['id'])): ?>
-                    <a href="/index.php?page=my-bookings" class="nav-link-subtle">Pengalaman Saya</a>
+                    <a href="/index.php?page=my-bookings" class="nav-link-subtle" title="Sesi yang saya ikuti sebagai peserta">Pengalaman Saya</a>
+                    <a href="/index.php?page=my-listings" class="nav-link-subtle" title="Kelola penawaran waktu milik saya">Penawaran Saya</a>
+                    <a href="/index.php?page=host-requests" class="nav-link-subtle" title="Tinjau calon peserta yang mendaftar">Permintaan Masuk</a>
                     <a href="/index.php?page=create-listing" class="button button-primary">
                         + Tawarkan Waktu
                     </a>
@@ -67,8 +69,10 @@ if (session_status() === PHP_SESSION_NONE) {
             <a href="/index.php?page=listings#cara-kerja">Cara kerjanya</a>
             <a href="/index.php?page=listings#keamanan">Keamanan</a>
             <?php if (isset($_SESSION['user']['id'])): ?>
-                <a href="/index.php?page=my-bookings">Pengalaman Saya</a>
-                <a href="/index.php?page=create-listing">+ Tawarkan Waktu</a>
+                <a href="/index.php?page=my-bookings">Pengalaman Saya (Peserta)</a>
+                <a href="/index.php?page=my-listings">Penawaran Saya (Host)</a>
+                <a href="/index.php?page=host-requests">Permintaan Masuk Peserta</a>
+                <a href="/index.php?page=create-listing">+ Tawarkan Waktu Baru</a>
                 <a href="/index.php?page=my-profile">Profil (<?= htmlspecialchars($_SESSION['user']['name'] ?? '') ?>)</a>
                 <a href="/index.php?page=logout">Keluar</a>
             <?php else: ?>
