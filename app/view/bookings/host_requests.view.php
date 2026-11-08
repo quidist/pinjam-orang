@@ -41,21 +41,30 @@
 
                         <!-- Data Peserta -->
                         <div style="display: flex; gap: 14px; align-items: center; margin: 12px 0;">
-                            <img 
-                                src="<?= !empty($req['participant_avatar']) ? htmlspecialchars($req['participant_avatar']) : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?crop=faces&fit=crop&w=80&h=80&q=80' ?>" 
-                                alt="Foto Peserta" 
-                                style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid white; box-shadow: 0 0 0 1px #e2e8f0;"
-                            >
+                            <a href="/index.php?page=profile&id=<?= (int)$req['participant_id'] ?>" target="_blank" title="Klik untuk meninjau profil lengkap peserta" style="text-decoration: none; display: block;">
+                                <img 
+                                    src="<?= !empty($req['participant_avatar']) ? htmlspecialchars($req['participant_avatar']) : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?crop=faces&fit=crop&w=80&h=80&q=80' ?>" 
+                                    alt="Foto Peserta" 
+                                    style="width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid white; box-shadow: 0 0 0 1px #cbd5e1;"
+                                >
+                            </a>
                             <div>
                                 <div style="font-size: 15px; font-weight: 700; color: var(--color-slate-deep); display: flex; align-items: center; gap: 6px;">
-                                    <?= htmlspecialchars($req['participant_name']) ?>
+                                    <a href="/index.php?page=profile&id=<?= (int)$req['participant_id'] ?>" target="_blank" style="color: inherit; text-decoration: none;" onmouseover="this.style.color='var(--color-primary)'" onmouseout="this.style.color='inherit'">
+                                        <?= htmlspecialchars($req['participant_name']) ?>
+                                    </a>
                                     <?php if (!empty($req['participant_is_verified'])): ?>
                                         <span class="verified" title="Identitas Terverifikasi">✓</span>
                                     <?php endif; ?>
                                 </div>
-                                <span class="trust-badge" style="font-size: 11px; margin-top: 2px;">
-                                    ⭐ <?= (int)($req['participant_trust_score'] ?? 100) ?> Poin Reputasi
-                                </span>
+                                <div style="display: flex; gap: 8px; align-items: center; margin-top: 3px;">
+                                    <span class="trust-badge" style="font-size: 11px;">
+                                        ⭐ <?= (int)($req['participant_trust_score'] ?? 100) ?> Poin Reputasi
+                                    </span>
+                                    <a href="/index.php?page=profile&id=<?= (int)$req['participant_id'] ?>" target="_blank" style="font-size: 11px; color: var(--color-primary); font-weight: 600; text-decoration: none;">
+                                        Lihat Profil &rarr;
+                                    </a>
+                                </div>
                             </div>
                         </div>
 
@@ -75,17 +84,20 @@
                     </div>
 
                     <!-- Tombol Aksi Persetujuan Host -->
-                    <div style="display: flex; gap: 10px; align-items: center;">
+                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                        <a href="/index.php?page=profile&id=<?= (int)$req['participant_id'] ?>" target="_blank" class="button button-outline" style="min-height: 40px; padding: 0 14px; font-size: 13px;" title="Tinjau detail profil & reputasi pendaftar">
+                            🔍 Tinjau Profil
+                        </a>
                         <?php if ($status === 'PENDING'): ?>
                             <form method="POST" action="/index.php?page=approve-booking" style="margin: 0;">
                                 <input type="hidden" name="booking_id" value="<?= (int)$req['id'] ?>">
-                                <button type="submit" class="button" style="background: #059669; color: white; min-height: 40px; padding: 0 18px;">
+                                <button type="submit" class="button" style="background: #059669; color: white; min-height: 40px; padding: 0 18px; font-size: 13px;">
                                     ✓ Setujui (Approve)
                                 </button>
                             </form>
                             <form method="POST" action="/index.php?page=reject-booking" onsubmit="return confirm('Tolak pendaftaran peserta ini?');" style="margin: 0;">
                                 <input type="hidden" name="booking_id" value="<?= (int)$req['id'] ?>">
-                                <button type="submit" class="button button-outline" style="color: #dc2626; border-color: #fecaca; min-height: 40px; padding: 0 16px;">
+                                <button type="submit" class="button button-outline" style="color: #dc2626; border-color: #fecaca; min-height: 40px; padding: 0 16px; font-size: 13px;">
                                     ✕ Tolak
                                 </button>
                             </form>
