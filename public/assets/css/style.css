@@ -290,7 +290,8 @@ input, select {
   border: 1px solid #a7f3d0;
 }
 
-.alert-danger {
+.alert-danger,
+.alert-error {
   background: #fef2f2;
   color: #dc2626;
   border: 1px solid #fecaca;
