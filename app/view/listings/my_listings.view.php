@@ -1,5 +1,5 @@
 <div class="catalog-section" style="padding-top: 40px;">
-    <div style="display: flex; justify-content: space-between; align-items: end; margin-bottom: 32px;">
+    <div style="display: flex; justify-content: space-between; align-items: end; margin-bottom: 32px; gap: 16px; flex-wrap: wrap;">
         <div>
             <span class="section-kicker">Host Dashboard</span>
             <h1 style="font-family: var(--font-display); font-size: 34px; color: var(--color-slate-deep); margin-top: 6px;">
@@ -9,9 +9,14 @@
                 Kelola jadwal waktu luang yang telah Anda publikasikan ke komunitas.
             </p>
         </div>
-        <a href="/index.php?page=create-listing" class="button button-primary">
-            + Tawarkan Waktu Baru
-        </a>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <a href="/index.php?page=host-requests" class="button button-outline" style="min-height: 42px;">
+                👥 Permintaan Masuk Peserta
+            </a>
+            <a href="/index.php?page=create-listing" class="button button-primary" style="min-height: 42px;">
+                + Tawarkan Waktu Baru
+            </a>
+        </div>
     </div>
 
     <?php if (!empty($myListings)): ?>
@@ -53,8 +58,11 @@
                         </div>
                     </div>
 
-                    <div style="display: flex; gap: 10px; align-items: center;">
-                        <a href="/index.php?page=listing-detail&id=<?= (int)$item['id'] ?>" class="button button-outline" style="min-height: 38px;">
+                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                        <a href="/index.php?page=host-requests" class="button button-outline" style="min-height: 38px; font-size: 13px;" title="Lihat pendaftar ke sesi ini">
+                            👥 Pendaftar
+                        </a>
+                        <a href="/index.php?page=listing-detail&id=<?= (int)$item['id'] ?>" class="button button-outline" style="min-height: 38px; font-size: 13px;">
                             Lihat Rincian
                         </a>
                         <?php if ($status === 'ACTIVE'): ?>
