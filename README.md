@@ -254,6 +254,61 @@ Letakkan pengendali alur aplikasi di `controller/`, struktur dan logika data di
 
 ---
 
+## 🚀 Panduan Instalasi & Menjalankan Proyek (Setup Guide)
+
+Bagi siapa saja yang meng-clone repositori ini, ikuti langkah mudah berikut untuk menjalankan PINJAMORANG di komputer lokal:
+
+### 1. Prasyarat Sistem
+- **PHP** versi 8.1 atau lebih baru (dengan ekstensi `pdo_mysql` aktif).
+- **MySQL / MariaDB** (dapat menggunakan Laragon, XAMPP, Docker, atau MySQL Server standalone).
+- **Git**
+
+### 2. Clone Repositori
+```bash
+git clone https://github.com/quidist/pinjam-orang.git
+cd pinjam-orang
+```
+
+### 3. Konfigurasi Environment (`.env`)
+Salin file `.env.example` menjadi `.env` di root direktori proyek:
+```bash
+cp .env.example .env
+```
+Isi dan sesuaikan kredensial database di dalam `.env`:
+```ini
+DB_HOST="127.0.0.1"
+DB_NAME="pinjam_orang"
+DB_USERNAME="root"
+DB_PASSWORD=""
+```
+
+### 4. Setup Database
+1. Buat database baru di MySQL dengan nama `pinjam_orang`:
+   ```sql
+   CREATE DATABASE pinjam_orang CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   ```
+2. Import skema tabel dari file `database.sql`:
+   - **Melalui Terminal:**
+     ```bash
+     mysql -u root -p pinjam_orang < database.sql
+     ```
+   - **Atau melalui GUI (phpMyAdmin / HeidiSQL / DBeaver):** Buka database `pinjam_orang`, lalu impor file `database.sql`.
+
+### 5. Jalankan Aplikasi
+Proyek ini dibangun menggunakan arsitektur murni (*Pure PHP MVC*) tanpa dependensi runtime pihak ketiga yang rumit. Anda dapat langsung menjalankan server lokal bawaan PHP melalui terminal:
+
+```bash
+php -S localhost:8000 index.php
+```
+
+Buka peramban (browser) dan akses alamat:
+👉 **http://localhost:8000**
+
+> *Catatan: Jika menggunakan Laragon atau Apache XAMPP, arahkan Document Root virtual host ke direktori proyek ini.*
+
+
+---
+
 ## 🔐 Important Business Rules
 
 1. Host tidak dapat menawarkan waktu yang bertabrakan dengan penawaran aktif miliknya.
